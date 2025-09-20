@@ -1,98 +1,233 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Payment System Assessment
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+High-performance payment processing system for Nigerian market with AWS SQS integration.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## 🚀 Features
 
-## Description
+- **Nigerian Market Focus**: NGN currency, local business examples
+- **Event-Driven Architecture**: AWS SQS integration for payment events
+- **ACID Compliance**: Database transactions and proper error handling
+- **Type Safety**: Strict TypeScript with comprehensive validation
+- **Security**: API key authentication and input validation
+- **Observability**: Structured logging and correlation tracking
+- **Documentation**: Comprehensive Swagger/OpenAPI documentation
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## 🏗️ Architecture
 
-## Project setup
-
-```bash
-$ npm install
+```
+┌─────────────────┐     ┌──────────────┐     ┌─────────────┐
+│   API Gateway   │────▶│   NestJS     │────▶│ PostgreSQL  │
+│  (Auth + Rate)  │     │  Monolith    │     │   (ACID)    │
+└─────────────────┘     └───────┬──────┘     └─────────────┘
+                                │
+                                ▼
+                        ┌───────────────┐
+                        │   AWS SQS     │
+                        │ payment-events│
+                        └───────┬───────┘
+                                │
+                                ▼
+                        ┌───────────────┐
+                        │ Event Consumer│
+                        │  (Background) │
+                        └───────────────┘
 ```
 
-## Compile and run the project
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Node.js 18+
+- PostgreSQL 15+
+- Docker & Docker Compose (optional)
+
+### 1. Install Dependencies
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+npm install
 ```
 
-## Run tests
+### 2. Setup Environment
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+cp .env.example .env
+# Update .env with your configuration
 ```
 
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+### 3. Setup Database
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+# Using Docker Compose
+docker-compose up -d postgres
+
+# Or setup PostgreSQL manually
+createdb payment_system
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+### 4. Run Migrations
 
-## Resources
+```bash
+npm run migration:run
+```
 
-Check out a few resources that may come in handy when working with NestJS:
+### 5. Seed Database (Optional)
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+```bash
+npm run seed
+```
 
-## Support
+### 6. Start Development Server
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+```bash
+npm run start:dev
+```
 
-## Stay in touch
+### 7. Access API Documentation
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+```
+http://localhost:3000/api/docs
+```
 
-## License
+## 📚 API Endpoints
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+### Merchants
+- `POST /api/v1/merchants` - Create merchant
+- `GET /api/v1/merchants` - List merchants
+- `GET /api/v1/merchants/:id` - Get merchant
+
+### Payment Methods
+- `POST /api/v1/payment-methods` - Create payment method
+- `GET /api/v1/payment-methods` - List payment methods
+- `GET /api/v1/payment-methods/:id` - Get payment method
+- `DELETE /api/v1/payment-methods/:id` - Deactivate payment method
+
+### Payments
+- `POST /api/v1/payments` - Initialize payment
+- `GET /api/v1/payments/:id` - Get payment by ID
+- `GET /api/v1/payments/reference/:reference` - Get payment by reference
+- `GET /api/v1/payments` - List merchant payments
+
+### Webhooks
+- `POST /api/v1/webhooks/payment-gateway` - Payment gateway webhook
+
+## 🔐 Authentication
+
+All payment-related endpoints require API key authentication:
+
+```bash
+curl -H "X-API-Key: your_api_key" \
+     -H "Content-Type: application/json" \
+     http://localhost:3000/api/v1/payments
+```
+
+## 🧪 Testing
+
+```bash
+# Unit tests
+npm run test
+
+# E2E tests
+npm run test:e2e
+
+# Test coverage
+npm run test:cov
+```
+
+## 🐳 Docker
+
+```bash
+# Build and run with Docker Compose
+docker-compose up --build
+
+# Run database only
+docker-compose up postgres redis
+```
+
+## 📊 Database Schema
+
+### Merchants
+- `id` (UUID, Primary Key)
+- `name` (VARCHAR)
+- `email` (VARCHAR, Unique)
+- `apiKey` (VARCHAR, Unique)
+- `webhookUrl` (VARCHAR)
+- `isActive` (BOOLEAN)
+
+### Payment Methods
+- `id` (UUID, Primary Key)
+- `type` (ENUM: card, bank_transfer, wallet, ussd, bank_account)
+- `provider` (VARCHAR)
+- `lastFour` (VARCHAR)
+- `bankCode` (VARCHAR)
+- `bankName` (VARCHAR)
+- `merchantId` (UUID, Foreign Key)
+- `isActive` (BOOLEAN)
+- `metadata` (JSONB)
+
+### Payments
+- `id` (UUID, Primary Key)
+- `reference` (VARCHAR, Unique)
+- `amount` (DECIMAL)
+- `currency` (VARCHAR, Default: NGN)
+- `status` (ENUM: pending, processing, completed, failed, cancelled, refunded)
+- `merchantId` (UUID, Foreign Key)
+- `paymentMethodId` (UUID, Foreign Key)
+- `gatewayReference` (VARCHAR)
+- `failureReason` (VARCHAR)
+- `metadata` (JSONB)
+- `initiatedAt` (TIMESTAMP)
+- `completedAt` (TIMESTAMP)
+
+## 🔄 Event Flow
+
+1. **Payment Initialization**
+   - Client calls `POST /api/v1/payments`
+   - Payment created with `pending` status
+   - `payment-initiated` event published to SQS
+
+2. **Payment Processing**
+   - External payment gateway processes payment
+   - Gateway sends webhook to `POST /api/v1/webhooks/payment-gateway`
+   - Payment status updated
+   - `payment-completed` event published to SQS
+
+3. **Event Consumption**
+   - SQS consumer processes events every 10 seconds
+   - Events logged for audit and monitoring
+
+## 🛠️ Development
+
+### Project Structure
+
+```
+src/
+├── modules/
+│   ├── merchants/           # Merchant domain
+│   ├── payments/            # Payment domain  
+│   ├── payment-methods/     # Payment method domain
+│   ├── webhooks/            # Webhook handling
+│   └── events/              # Event processing
+├── common/
+│   ├── decorators/          # Custom decorators
+│   ├── filters/             # Exception filters
+│   ├── guards/              # Auth guards
+│   ├── interceptors/        # Logging, transformation
+│   └── pipes/               # Validation pipes
+├── config/                  # Configuration
+├── database/                # Migrations, seeds
+└── main.ts
+```
+
+### Key Technologies
+
+- **NestJS** - Progressive Node.js framework
+- **TypeORM** - TypeScript ORM
+- **PostgreSQL** - ACID-compliant database
+- **AWS SQS** - Message queuing service
+- **Swagger/OpenAPI** - API documentation
+- **Winston** - Structured logging
+- **Jest** - Testing framework
+
+## 📝 License
+
+MIT License

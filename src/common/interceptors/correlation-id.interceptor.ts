@@ -11,7 +11,7 @@ import { v4 as uuidv4 } from 'uuid';
 export class CorrelationIdInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const request = context.switchToHttp().getRequest();
-    
+
     if (!request.headers['x-correlation-id']) {
       request.headers['x-correlation-id'] = uuidv4();
     }
