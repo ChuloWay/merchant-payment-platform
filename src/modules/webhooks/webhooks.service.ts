@@ -55,9 +55,29 @@ export class WebhooksService {
   }
 
   validateWebhookSignature(
-    _payload: string,
-    _signature: string,
+    payload: string,
+    signature: string,
   ): boolean {
-    return true;
+    if (!signature || !payload) {
+      return false;
+    }
+
+    try {
+      // In a real implementation, you would use the webhook secret from environment
+      const webhookSecret = process.env.WEBHOOK_SECRET || 'test-webhook-secret';
+      
+      const expectedSignature = require('crypto')
+        .createHmac('sha256', webhookSecret)
+        .update(payload)
+        .digest('hex');
+
+      // Use constant-time comparison to prevent timing attacks
+      return require('crypto').timingSafeEqual(
+        Buffer.from(signature, 'hex'),
+        Buffer.from(expectedSignature, 'hex')
+      );
+    } catch (error) {
+      return false;
+    }
   }
 }
