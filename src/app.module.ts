@@ -5,6 +5,7 @@ import { ThrottlerModule, ThrottlerModuleOptions } from '@nestjs/throttler';
 import { TerminusModule } from '@nestjs/terminus';
 import { appConfig } from './config/app.config';
 import { databaseConfig } from './config/database.config';
+import { sqsConfig } from './config/sqs.config';
 import { MerchantsModule } from './modules/merchants/merchants.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { PaymentMethodsModule } from './modules/payment-methods/payment-methods.module';
@@ -16,7 +17,7 @@ import { HealthController } from './common/health/health.controller';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig, databaseConfig],
+      load: [appConfig, databaseConfig, sqsConfig],
       envFilePath: ['.env.local', '.env'],
     }),
     TypeOrmModule.forRootAsync({
