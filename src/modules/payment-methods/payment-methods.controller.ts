@@ -8,7 +8,9 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  Req,
 } from '@nestjs/common';
+import { Request } from 'express';
 import {
   ApiTags,
   ApiOperation,
@@ -44,10 +46,11 @@ export class PaymentMethodsController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async create(
     @Body() createPaymentMethodDto: CreatePaymentMethodDto,
+    @Req() request: Request,
   ): Promise<PaymentMethodResponseDto> {
-    const merchantId = (createPaymentMethodDto as any).merchant?.id;
+    const merchant = (request as any).merchant;
     return this.paymentMethodsService.create(
-      merchantId,
+      merchant.id,
       createPaymentMethodDto,
     );
   }
@@ -64,9 +67,9 @@ export class PaymentMethodsController {
     type: [PaymentMethodResponseDto],
   })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  async findAll(): Promise<PaymentMethodResponseDto[]> {
-    const merchantId = (this as any).merchant?.id;
-    return this.paymentMethodsService.findByMerchant(merchantId);
+  async findAll(@Req() request: Request): Promise<PaymentMethodResponseDto[]> {
+    const merchant = (request as any).merchant;
+    return this.paymentMethodsService.findByMerchant(merchant.id);
   }
 
   @Get(':id')
@@ -107,8 +110,8 @@ export class PaymentMethodsController {
   })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 404, description: 'Payment method not found' })
-  async remove(@Param('id') id: string): Promise<void> {
-    const merchantId = (this as any).merchant?.id;
-    return this.paymentMethodsService.deactivate(id, merchantId);
+  async remove(@Param('id') id: string, @Req() request: Request): Promise<void> {
+    const merchant = (request as any).merchant;
+    return this.paymentMethodsService.deactivate(id, merchant.id);
   }
 }

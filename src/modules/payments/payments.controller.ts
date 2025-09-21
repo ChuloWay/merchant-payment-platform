@@ -8,7 +8,9 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  Req,
 } from '@nestjs/common';
+import { Request } from 'express';
 import {
   ApiTags,
   ApiOperation,
@@ -46,10 +48,11 @@ export class PaymentsController {
   @ApiResponse({ status: 404, description: 'Payment method not found' })
   async initializePayment(
     @Body() initializePaymentDto: InitializePaymentDto,
+    @Req() request: Request,
   ): Promise<PaymentResponseDto> {
-    const merchantId = (initializePaymentDto as any).merchant?.id;
+    const merchant = (request as any).merchant;
     return this.paymentsService.initializePayment(
-      merchantId,
+      merchant.id,
       initializePaymentDto,
     );
   }
@@ -123,12 +126,13 @@ export class PaymentsController {
   })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async getPayments(
+    @Req() request: Request,
     @Query('limit') limit?: number,
     @Query('offset') offset?: number,
   ): Promise<PaymentResponseDto[]> {
-    const merchantId = (this as any).merchant?.id;
+    const merchant = (request as any).merchant;
     return this.paymentsService.findByMerchant(
-      merchantId,
+      merchant.id,
       limit ? Math.min(parseInt(limit.toString()), 100) : 50,
       offset ? parseInt(offset.toString()) : 0,
     );
