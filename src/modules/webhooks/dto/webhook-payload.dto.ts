@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, IsOptional, IsObject } from 'class-validator';
+import { IsNotEmpty, IsString, IsOptional, IsObject, IsEnum } from 'class-validator';
 import { PaymentStatus } from '../../payments/entities/payment.entity';
 
 export class WebhookPayloadDto {
@@ -17,7 +17,7 @@ export class WebhookPayloadDto {
     example: PaymentStatus.COMPLETED,
   })
   @IsNotEmpty()
-  @IsString()
+  @IsEnum(PaymentStatus)
   status: PaymentStatus;
 
   @ApiProperty({

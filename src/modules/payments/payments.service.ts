@@ -105,8 +105,12 @@ export class PaymentsService {
       throw new NotFoundException('Payment not found');
     }
 
-    if (payment.status !== PaymentStatus.PENDING) {
-      throw new BadRequestException('Payment status cannot be updated');
+    // Allow status updates for idempotency (e.g., duplicate webhooks)
+    if (payment.status === status) {
+      this.logger.log(
+        `Payment ${paymentId} already has status ${status}. Returning current payment.`,
+      );
+      return this.mapToResponseDto(payment);
     }
 
     return this.dataSource.transaction(async (manager) => {
@@ -133,7 +137,14 @@ export class PaymentsService {
         throw new NotFoundException('Payment not found after update');
       }
 
-      await this.sqsService.publishEvent('payment-completed', {
+      // Publish appropriate event based on status
+      const eventType = status === PaymentStatus.COMPLETED ? 'payment-completed' : 
+                       status === PaymentStatus.FAILED ? 'payment-failed' :
+                       status === PaymentStatus.CANCELLED ? 'payment-cancelled' :
+                       status === PaymentStatus.REFUNDED ? 'payment-refunded' :
+                       'payment-status-updated';
+
+      await this.sqsService.publishEvent(eventType, {
         paymentId: updatedPayment.id,
         reference: updatedPayment.reference,
         status: updatedPayment.status,

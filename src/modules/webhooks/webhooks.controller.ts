@@ -8,6 +8,7 @@ import {
   Logger,
   Res,
   Next,
+  BadRequestException,
 } from '@nestjs/common';
 import { Response, NextFunction } from 'express';
 import { ApiTags, ApiOperation, ApiResponse, ApiHeader } from '@nestjs/swagger';
@@ -56,7 +57,7 @@ export class WebhooksController {
           this.logger.warn(
             `Invalid webhook signature for payment: ${webhookPayload.reference}`,
           );
-          throw new Error('Invalid webhook signature');
+          throw new BadRequestException('Invalid webhook signature');
         }
       }
 

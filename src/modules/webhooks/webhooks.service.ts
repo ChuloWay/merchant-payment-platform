@@ -28,9 +28,10 @@ export class WebhooksService {
         );
       }
 
-      if (payment.status !== PaymentStatus.PENDING) {
-        this.logger.warn(
-          `Payment ${reference} is not in pending status. Current status: ${payment.status}`,
+      // Allow status updates for idempotency (e.g., duplicate webhooks)
+      if (payment.status === status) {
+        this.logger.log(
+          `Payment ${reference} already has status ${status}. Skipping update.`,
         );
         return;
       }
