@@ -7,6 +7,7 @@ import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { CorrelationIdInterceptor } from './common/interceptors/correlation-id.interceptor';
+import { ApiKeyGuard } from './common/guards/api-key.guard';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -42,6 +43,10 @@ async function bootstrap() {
     new CorrelationIdInterceptor(),
     new LoggingInterceptor(),
   );
+
+  // Apply API key guard globally, but exclude health and docs endpoints
+  const apiKeyGuard = app.get(ApiKeyGuard);
+  app.useGlobalGuards(apiKeyGuard);
 
   const config = new DocumentBuilder()
     .setTitle('Payment System API')

@@ -16,6 +16,16 @@ export class ApiKeyGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
     const apiKey = request.headers['x-api-key'] as string;
+    
+    // Skip API key validation for certain paths
+    const skipPaths = ['/api/v1/health', '/api/v1/docs', '/api/v1/merchants'];
+    const currentPath = request.url;
+    
+    // Check if current path should skip API key validation
+    const shouldSkip = skipPaths.some(path => currentPath.startsWith(path));
+    if (shouldSkip) {
+      return true;
+    }
 
     if (!apiKey) {
       this.logger.warn('API key missing from request');
