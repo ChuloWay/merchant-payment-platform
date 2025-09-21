@@ -9,8 +9,10 @@ import {
   HttpCode,
   HttpStatus,
   Req,
+  Res,
+  Next,
 } from '@nestjs/common';
-import { Request } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import {
   ApiTags,
   ApiOperation,
@@ -45,14 +47,25 @@ export class PaymentMethodsController {
   @ApiResponse({ status: 400, description: 'Invalid input data' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async create(
+    @Res() res: Response,
+    @Req() req: Request,
+    @Next() next: NextFunction,
     @Body() createPaymentMethodDto: CreatePaymentMethodDto,
-    @Req() request: Request,
-  ): Promise<PaymentMethodResponseDto> {
-    const merchant = (request as any).merchant;
-    return this.paymentMethodsService.create(
-      merchant.id,
-      createPaymentMethodDto,
-    );
+  ) {
+    try {
+      const merchant = (req as any).merchant;
+      const paymentMethod = await this.paymentMethodsService.create(
+        merchant.id,
+        createPaymentMethodDto,
+      );
+      return res.status(HttpStatus.CREATED).json({
+        statusCode: HttpStatus.CREATED,
+        data: paymentMethod,
+        message: 'Payment method created successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
   }
 
   @Get()
@@ -67,9 +80,22 @@ export class PaymentMethodsController {
     type: [PaymentMethodResponseDto],
   })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  async findAll(@Req() request: Request): Promise<PaymentMethodResponseDto[]> {
-    const merchant = (request as any).merchant;
-    return this.paymentMethodsService.findByMerchant(merchant.id);
+  async findAll(
+    @Res() res: Response,
+    @Req() req: Request,
+    @Next() next: NextFunction,
+  ) {
+    try {
+      const merchant = (req as any).merchant;
+      const paymentMethods = await this.paymentMethodsService.findByMerchant(merchant.id);
+      return res.status(HttpStatus.OK).json({
+        statusCode: HttpStatus.OK,
+        data: paymentMethods,
+        message: 'Payment methods retrieved successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
   }
 
   @Get(':id')
@@ -89,8 +115,21 @@ export class PaymentMethodsController {
   })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 404, description: 'Payment method not found' })
-  async findOne(@Param('id') id: string): Promise<PaymentMethodResponseDto> {
-    return this.paymentMethodsService.findById(id);
+  async findOne(
+    @Res() res: Response,
+    @Next() next: NextFunction,
+    @Param('id') id: string,
+  ) {
+    try {
+      const paymentMethod = await this.paymentMethodsService.findById(id);
+      return res.status(HttpStatus.OK).json({
+        statusCode: HttpStatus.OK,
+        data: paymentMethod,
+        message: 'Payment method retrieved successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
   }
 
   @Delete(':id')
@@ -110,8 +149,22 @@ export class PaymentMethodsController {
   })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 404, description: 'Payment method not found' })
-  async remove(@Param('id') id: string, @Req() request: Request): Promise<void> {
-    const merchant = (request as any).merchant;
-    return this.paymentMethodsService.deactivate(id, merchant.id);
+  async remove(
+    @Res() res: Response,
+    @Req() req: Request,
+    @Next() next: NextFunction,
+    @Param('id') id: string,
+  ) {
+    try {
+      const merchant = (req as any).merchant;
+      await this.paymentMethodsService.deactivate(id, merchant.id);
+      return res.status(HttpStatus.OK).json({
+        statusCode: HttpStatus.OK,
+        data: null,
+        message: 'Payment method deactivated successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
   }
 }

@@ -6,7 +6,10 @@ import {
   Param,
   HttpCode,
   HttpStatus,
+  Res,
+  Next,
 } from '@nestjs/common';
+import { Response, NextFunction } from 'express';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { MerchantsService } from './merchants.service';
 import { CreateMerchantDto } from './dto/create-merchant.dto';
@@ -35,9 +38,20 @@ export class MerchantsController {
     description: 'Merchant with email already exists',
   })
   async create(
+    @Res() res: Response,
+    @Next() next: NextFunction,
     @Body() createMerchantDto: CreateMerchantDto,
-  ): Promise<MerchantResponseDto> {
-    return this.merchantsService.create(createMerchantDto);
+  ) {
+    try {
+      const merchant = await this.merchantsService.create(createMerchantDto);
+      return res.status(HttpStatus.CREATED).json({
+        statusCode: HttpStatus.CREATED,
+        data: merchant,
+        message: 'Merchant created successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
   }
 
   @Get()
@@ -50,8 +64,20 @@ export class MerchantsController {
     description: 'Merchants retrieved successfully',
     type: [MerchantResponseDto],
   })
-  async findAll(): Promise<MerchantResponseDto[]> {
-    return this.merchantsService.findAll();
+  async findAll(
+    @Res() res: Response,
+    @Next() next: NextFunction,
+  ) {
+    try {
+      const merchants = await this.merchantsService.findAll();
+      return res.status(HttpStatus.OK).json({
+        statusCode: HttpStatus.OK,
+        data: merchants,
+        message: 'Merchants retrieved successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
   }
 
   @Get(':id')
@@ -70,7 +96,20 @@ export class MerchantsController {
     type: MerchantResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Merchant not found' })
-  async findOne(@Param('id') id: string): Promise<MerchantResponseDto> {
-    return this.merchantsService.findById(id);
+  async findOne(
+    @Res() res: Response,
+    @Next() next: NextFunction,
+    @Param('id') id: string,
+  ) {
+    try {
+      const merchant = await this.merchantsService.findById(id);
+      return res.status(HttpStatus.OK).json({
+        statusCode: HttpStatus.OK,
+        data: merchant,
+        message: 'Merchant retrieved successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
   }
 }

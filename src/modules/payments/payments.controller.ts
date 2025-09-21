@@ -9,8 +9,10 @@ import {
   HttpCode,
   HttpStatus,
   Req,
+  Res,
+  Next,
 } from '@nestjs/common';
-import { Request } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import {
   ApiTags,
   ApiOperation,
@@ -47,14 +49,25 @@ export class PaymentsController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 404, description: 'Payment method not found' })
   async initializePayment(
+    @Res() res: Response,
+    @Req() req: Request,
+    @Next() next: NextFunction,
     @Body() initializePaymentDto: InitializePaymentDto,
-    @Req() request: Request,
-  ): Promise<PaymentResponseDto> {
-    const merchant = (request as any).merchant;
-    return this.paymentsService.initializePayment(
-      merchant.id,
-      initializePaymentDto,
-    );
+  ) {
+    try {
+      const merchant = (req as any).merchant;
+      const payment = await this.paymentsService.initializePayment(
+        merchant.id,
+        initializePaymentDto,
+      );
+      return res.status(HttpStatus.CREATED).json({
+        statusCode: HttpStatus.CREATED,
+        data: payment,
+        message: 'Payment initialized successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
   }
 
   @Get(':id')
@@ -74,8 +87,21 @@ export class PaymentsController {
   })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 404, description: 'Payment not found' })
-  async getPayment(@Param('id') id: string): Promise<PaymentResponseDto> {
-    return this.paymentsService.findById(id);
+  async getPayment(
+    @Res() res: Response,
+    @Next() next: NextFunction,
+    @Param('id') id: string,
+  ) {
+    try {
+      const payment = await this.paymentsService.findById(id);
+      return res.status(HttpStatus.OK).json({
+        statusCode: HttpStatus.OK,
+        data: payment,
+        message: 'Payment retrieved successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
   }
 
   @Get('reference/:reference')
@@ -96,9 +122,20 @@ export class PaymentsController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 404, description: 'Payment not found' })
   async getPaymentByReference(
+    @Res() res: Response,
+    @Next() next: NextFunction,
     @Param('reference') reference: string,
-  ): Promise<PaymentResponseDto> {
-    return this.paymentsService.findByReference(reference);
+  ) {
+    try {
+      const payment = await this.paymentsService.findByReference(reference);
+      return res.status(HttpStatus.OK).json({
+        statusCode: HttpStatus.OK,
+        data: payment,
+        message: 'Payment retrieved successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
   }
 
   @Get()
@@ -126,15 +163,26 @@ export class PaymentsController {
   })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async getPayments(
-    @Req() request: Request,
+    @Res() res: Response,
+    @Req() req: Request,
+    @Next() next: NextFunction,
     @Query('limit') limit?: number,
     @Query('offset') offset?: number,
-  ): Promise<PaymentResponseDto[]> {
-    const merchant = (request as any).merchant;
-    return this.paymentsService.findByMerchant(
-      merchant.id,
-      limit ? Math.min(parseInt(limit.toString()), 100) : 50,
-      offset ? parseInt(offset.toString()) : 0,
-    );
+  ) {
+    try {
+      const merchant = (req as any).merchant;
+      const payments = await this.paymentsService.findByMerchant(
+        merchant.id,
+        limit ? Math.min(parseInt(limit.toString()), 100) : 50,
+        offset ? parseInt(offset.toString()) : 0,
+      );
+      return res.status(HttpStatus.OK).json({
+        statusCode: HttpStatus.OK,
+        data: payments,
+        message: 'Payments retrieved successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
   }
 }

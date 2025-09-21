@@ -6,7 +6,10 @@ import {
   HttpCode,
   HttpStatus,
   Logger,
+  Res,
+  Next,
 } from '@nestjs/common';
+import { Response, NextFunction } from 'express';
 import { ApiTags, ApiOperation, ApiResponse, ApiHeader } from '@nestjs/swagger';
 import { WebhooksService } from './webhooks.service';
 import { WebhookPayloadDto } from './dto/webhook-payload.dto';
@@ -37,9 +40,11 @@ export class WebhooksController {
   @ApiResponse({ status: 400, description: 'Invalid webhook payload' })
   @ApiResponse({ status: 404, description: 'Payment not found' })
   async handlePaymentGatewayWebhook(
+    @Res() res: Response,
+    @Next() next: NextFunction,
     @Body() webhookPayload: WebhookPayloadDto,
     @Headers('x-webhook-signature') signature?: string,
-  ): Promise<{ success: boolean; message: string }> {
+  ) {
     try {
       if (signature) {
         const isValid = this.webhooksService.validateWebhookSignature(
@@ -61,20 +66,17 @@ export class WebhooksController {
         `Webhook processed successfully for payment: ${webhookPayload.reference}`,
       );
 
-      return {
-        success: true,
+      return res.status(HttpStatus.OK).json({
+        statusCode: HttpStatus.OK,
+        data: { success: true },
         message: 'Webhook processed successfully',
-      };
+      });
     } catch (error) {
       this.logger.error(
         `Failed to process webhook for payment ${webhookPayload.reference}:`,
         error.stack,
       );
-
-      return {
-        success: false,
-        message: error.message || 'Failed to process webhook',
-      };
+      next(error);
     }
   }
 }
