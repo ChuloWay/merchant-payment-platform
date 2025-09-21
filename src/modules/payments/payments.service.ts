@@ -40,11 +40,14 @@ export class PaymentsService {
       metadata,
     } = initializePaymentDto;
 
+    this.logger.log(`Initializing payment for merchant: ${merchantId}, paymentMethod: ${paymentMethodId}`);
+
     const paymentMethod = await this.paymentMethodRepository.findOne({
       where: { id: paymentMethodId, merchantId, isActive: true },
     });
 
     if (!paymentMethod) {
+      this.logger.error(`Payment method not found: ${paymentMethodId} for merchant: ${merchantId}`);
       throw new NotFoundException('Payment method not found or inactive');
     }
 
@@ -64,16 +67,21 @@ export class PaymentsService {
 
       const savedPayment = await manager.save(payment);
 
-      await this.sqsService.publishEvent('payment-initiated', {
-        paymentId: savedPayment.id,
-        reference: savedPayment.reference,
-        amount: savedPayment.amount,
-        currency: savedPayment.currency,
-        merchantId: savedPayment.merchantId,
-        paymentMethodId: savedPayment.paymentMethodId,
-        metadata: savedPayment.metadata,
-        initiatedAt: savedPayment.initiatedAt,
-      });
+      // Temporarily disable SQS to test payment creation
+      try {
+        await this.sqsService.publishEvent('payment-initiated', {
+          paymentId: savedPayment.id,
+          reference: savedPayment.reference,
+          amount: savedPayment.amount,
+          currency: savedPayment.currency,
+          merchantId: savedPayment.merchantId,
+          paymentMethodId: savedPayment.paymentMethodId,
+          metadata: savedPayment.metadata,
+          initiatedAt: savedPayment.initiatedAt,
+        });
+      } catch (error) {
+        this.logger.warn('SQS event publishing failed, continuing with payment creation', error.message);
+      }
 
       this.logger.log(
         `Payment initialized: ${savedPayment.reference} - Amount: ₦${amount.toLocaleString()}`,
