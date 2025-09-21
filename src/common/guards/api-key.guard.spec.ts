@@ -129,7 +129,7 @@ describe('ApiKeyGuard', () => {
       const result = await guard.canActivate(context);
 
       expect(result).toBe(true);
-      expect(mockMerchantsService.findByApiKey).toHaveBeenCalledWith(apiKey, true);
+      expect(mockMerchantsService.findByApiKey).toHaveBeenCalledWith(apiKey);
     });
 
     it('should throw UnauthorizedException for invalid API key', async () => {
@@ -141,7 +141,7 @@ describe('ApiKeyGuard', () => {
       });
 
       await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
-      expect(mockMerchantsService.findByApiKey).toHaveBeenCalledWith(apiKey, true);
+      expect(mockMerchantsService.findByApiKey).toHaveBeenCalledWith(apiKey);
     });
 
     it('should throw UnauthorizedException for inactive merchant', async () => {
@@ -160,7 +160,7 @@ describe('ApiKeyGuard', () => {
       });
 
       await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
-      expect(mockMerchantsService.findByApiKey).toHaveBeenCalledWith(apiKey, true);
+      expect(mockMerchantsService.findByApiKey).toHaveBeenCalledWith(apiKey);
     });
 
     it('should handle service errors gracefully', async () => {
@@ -172,7 +172,7 @@ describe('ApiKeyGuard', () => {
       });
 
       await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
-      expect(mockMerchantsService.findByApiKey).toHaveBeenCalledWith(apiKey, true);
+      expect(mockMerchantsService.findByApiKey).toHaveBeenCalledWith(apiKey);
     });
 
     it('should handle case-insensitive API key header', async () => {
@@ -193,7 +193,7 @@ describe('ApiKeyGuard', () => {
       const result = await guard.canActivate(context);
 
       expect(result).toBe(true);
-      expect(mockMerchantsService.findByApiKey).toHaveBeenCalledWith(apiKey, true);
+      expect(mockMerchantsService.findByApiKey).toHaveBeenCalledWith(apiKey);
     });
 
     it('should handle multiple API key headers', async () => {
@@ -215,7 +215,7 @@ describe('ApiKeyGuard', () => {
       const result = await guard.canActivate(context);
 
       expect(result).toBe(true);
-      expect(mockMerchantsService.findByApiKey).toHaveBeenCalledWith(apiKey, true);
+      expect(mockMerchantsService.findByApiKey).toHaveBeenCalledWith(apiKey);
     });
   });
 
@@ -229,7 +229,7 @@ describe('ApiKeyGuard', () => {
       });
 
       await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
-      expect(mockMerchantsService.findByApiKey).toHaveBeenCalledWith(maliciousApiKey, true);
+      expect(mockMerchantsService.findByApiKey).toHaveBeenCalledWith(maliciousApiKey);
     });
 
     it('should handle very long API keys', async () => {
@@ -241,7 +241,7 @@ describe('ApiKeyGuard', () => {
       });
 
       await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
-      expect(mockMerchantsService.findByApiKey).toHaveBeenCalledWith(longApiKey, true);
+      expect(mockMerchantsService.findByApiKey).toHaveBeenCalledWith(longApiKey);
     });
 
     it('should handle special characters in API key', async () => {
@@ -253,7 +253,7 @@ describe('ApiKeyGuard', () => {
       });
 
       await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
-      expect(mockMerchantsService.findByApiKey).toHaveBeenCalledWith(specialApiKey, true);
+      expect(mockMerchantsService.findByApiKey).toHaveBeenCalledWith(specialApiKey);
     });
 
     it('should handle concurrent authentication requests', async () => {

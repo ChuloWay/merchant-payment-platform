@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ExecutionContext, CallHandler } from '@nestjs/common';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { CorrelationIdInterceptor } from './correlation-id.interceptor';
 
 // Mock functions for testing
@@ -9,8 +9,8 @@ const createMockExecutionContext = (request: any = {}) => ({
     getRequest: () => ({
       method: 'GET',
       url: '/api/v1/test',
-      headers: {},
       ip: '127.0.0.1',
+      headers: request,
       ...request,
     }),
     getResponse: () => ({
@@ -154,7 +154,7 @@ describe('CorrelationIdInterceptor', () => {
       const context = createMockExecutionContext();
       const handler = {
         handle: () => {
-          throw new Error('Handler error');
+          return throwError(() => new Error('Handler error'));
         },
       } as CallHandler;
 

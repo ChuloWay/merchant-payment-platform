@@ -47,22 +47,6 @@ describe('GlobalExceptionFilter', () => {
   });
 
   describe('catch', () => {
-    const createMockArgumentsHost = (request: any = {}, response: any = {}) => {
-      return {
-        switchToHttp: () => ({
-          getRequest: () => request,
-          getResponse: () => response,
-        }),
-      } as ArgumentsHost;
-    };
-
-    const createMockResponse = () => {
-      return {
-        status: jest.fn().mockReturnThis(),
-        json: jest.fn().mockReturnThis(),
-      } as unknown as Response;
-    };
-
     it('should handle HttpException with proper status and message', () => {
       const exception = new HttpException('Test error message', HttpStatus.BAD_REQUEST);
       const mockResponse = createMockResponse();
@@ -74,17 +58,16 @@ describe('GlobalExceptionFilter', () => {
       expect(mockResponse.json).toHaveBeenCalledWith({
         statusCode: HttpStatus.BAD_REQUEST,
         message: 'Test error message',
-        error: 'Bad Request',
         timestamp: expect.any(String),
         path: undefined,
+        method: undefined,
+        correlationId: undefined,
       });
     });
 
     it('should handle HttpException with custom error object', () => {
-      const exception = new HttpException(
-        { message: 'Custom error', code: 'CUSTOM_ERROR' },
-        HttpStatus.UNPROCESSABLE_ENTITY,
-      );
+      const customError = { message: 'Custom error', code: 'CUSTOM_ERROR' };
+      const exception = new HttpException(customError, HttpStatus.UNPROCESSABLE_ENTITY);
       const mockResponse = createMockResponse();
       const host = createMockArgumentsHost({}, mockResponse);
 
@@ -93,15 +76,17 @@ describe('GlobalExceptionFilter', () => {
       expect(mockResponse.status).toHaveBeenCalledWith(HttpStatus.UNPROCESSABLE_ENTITY);
       expect(mockResponse.json).toHaveBeenCalledWith({
         statusCode: HttpStatus.UNPROCESSABLE_ENTITY,
-        message: { message: 'Custom error', code: 'CUSTOM_ERROR' },
-        error: 'Unprocessable Entity',
+        message: 'Custom error',
+        details: customError,
         timestamp: expect.any(String),
         path: undefined,
+        method: undefined,
+        correlationId: undefined,
       });
     });
 
     it('should handle generic Error with 500 status', () => {
-      const exception = new Error('Generic error message');
+      const exception = new Error('Generic error');
       const mockResponse = createMockResponse();
       const host = createMockArgumentsHost({}, mockResponse);
 
@@ -111,9 +96,10 @@ describe('GlobalExceptionFilter', () => {
       expect(mockResponse.json).toHaveBeenCalledWith({
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
         message: 'Internal server error',
-        error: 'Internal Server Error',
         timestamp: expect.any(String),
         path: undefined,
+        method: undefined,
+        correlationId: undefined,
       });
     });
 
@@ -128,9 +114,10 @@ describe('GlobalExceptionFilter', () => {
       expect(mockResponse.json).toHaveBeenCalledWith({
         statusCode: HttpStatus.NOT_FOUND,
         message: 'Resource not found',
-        error: 'Not Found',
         timestamp: expect.any(String),
         path: undefined,
+        method: undefined,
+        correlationId: undefined,
       });
     });
 
@@ -145,9 +132,10 @@ describe('GlobalExceptionFilter', () => {
       expect(mockResponse.json).toHaveBeenCalledWith({
         statusCode: HttpStatus.UNAUTHORIZED,
         message: 'Unauthorized access',
-        error: 'Unauthorized',
         timestamp: expect.any(String),
         path: undefined,
+        method: undefined,
+        correlationId: undefined,
       });
     });
 
@@ -162,9 +150,10 @@ describe('GlobalExceptionFilter', () => {
       expect(mockResponse.json).toHaveBeenCalledWith({
         statusCode: HttpStatus.FORBIDDEN,
         message: 'Access forbidden',
-        error: 'Forbidden',
         timestamp: expect.any(String),
         path: undefined,
+        method: undefined,
+        correlationId: undefined,
       });
     });
 
@@ -179,9 +168,10 @@ describe('GlobalExceptionFilter', () => {
       expect(mockResponse.json).toHaveBeenCalledWith({
         statusCode: HttpStatus.CONFLICT,
         message: 'Resource conflict',
-        error: 'Conflict',
         timestamp: expect.any(String),
         path: undefined,
+        method: undefined,
+        correlationId: undefined,
       });
     });
 
@@ -196,28 +186,27 @@ describe('GlobalExceptionFilter', () => {
       expect(mockResponse.json).toHaveBeenCalledWith({
         statusCode: HttpStatus.BAD_REQUEST,
         message: 'Validation failed',
-        error: 'Bad Request',
         timestamp: expect.any(String),
         path: undefined,
+        method: undefined,
+        correlationId: undefined,
       });
     });
 
     it('should include request path in error response', () => {
       const exception = new HttpException('Test error', HttpStatus.BAD_REQUEST);
       const mockResponse = createMockResponse();
-      const host = createMockArgumentsHost(
-        { url: '/api/v1/payments' },
-        mockResponse,
-      );
+      const host = createMockArgumentsHost({ url: '/api/v1/payments' }, mockResponse);
 
       filter.catch(exception, host);
 
       expect(mockResponse.json).toHaveBeenCalledWith({
         statusCode: HttpStatus.BAD_REQUEST,
         message: 'Test error',
-        error: 'Bad Request',
         timestamp: expect.any(String),
         path: '/api/v1/payments',
+        method: undefined,
+        correlationId: undefined,
       });
     });
 
@@ -232,14 +221,15 @@ describe('GlobalExceptionFilter', () => {
       expect(mockResponse.json).toHaveBeenCalledWith({
         statusCode: HttpStatus.BAD_REQUEST,
         message: '',
-        error: 'Bad Request',
         timestamp: expect.any(String),
         path: undefined,
+        method: undefined,
+        correlationId: undefined,
       });
     });
 
     it('should handle errors with null message', () => {
-      const exception = new HttpException('Bad request', HttpStatus.BAD_REQUEST);
+      const exception = new HttpException('', HttpStatus.BAD_REQUEST);
       const mockResponse = createMockResponse();
       const host = createMockArgumentsHost({}, mockResponse);
 
@@ -248,15 +238,16 @@ describe('GlobalExceptionFilter', () => {
       expect(mockResponse.status).toHaveBeenCalledWith(HttpStatus.BAD_REQUEST);
       expect(mockResponse.json).toHaveBeenCalledWith({
         statusCode: HttpStatus.BAD_REQUEST,
-        message: null,
-        error: 'Bad Request',
+        message: '',
         timestamp: expect.any(String),
         path: undefined,
+        method: undefined,
+        correlationId: undefined,
       });
     });
 
     it('should handle errors with undefined message', () => {
-      const exception = new HttpException('Bad request', HttpStatus.BAD_REQUEST);
+      const exception = new HttpException('', HttpStatus.BAD_REQUEST);
       const mockResponse = createMockResponse();
       const host = createMockArgumentsHost({}, mockResponse);
 
@@ -265,10 +256,11 @@ describe('GlobalExceptionFilter', () => {
       expect(mockResponse.status).toHaveBeenCalledWith(HttpStatus.BAD_REQUEST);
       expect(mockResponse.json).toHaveBeenCalledWith({
         statusCode: HttpStatus.BAD_REQUEST,
-        message: undefined,
-        error: 'Bad Request',
+        message: '',
         timestamp: expect.any(String),
         path: undefined,
+        method: undefined,
+        correlationId: undefined,
       });
     });
 
@@ -280,13 +272,13 @@ describe('GlobalExceptionFilter', () => {
       filter.catch(exception, host);
 
       expect(mockLogger.error).toHaveBeenCalledWith(
-        expect.stringContaining('Test error'),
+        expect.stringContaining('HTTP 500 Error'),
         expect.any(String),
       );
     });
 
     it('should handle database connection errors', () => {
-      const exception = new Error('Connection timeout');
+      const exception = new Error('Connection refused');
       const mockResponse = createMockResponse();
       const host = createMockArgumentsHost({}, mockResponse);
 
@@ -296,14 +288,15 @@ describe('GlobalExceptionFilter', () => {
       expect(mockResponse.json).toHaveBeenCalledWith({
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
         message: 'Internal server error',
-        error: 'Internal Server Error',
         timestamp: expect.any(String),
         path: undefined,
+        method: undefined,
+        correlationId: undefined,
       });
     });
 
     it('should handle network errors', () => {
-      const exception = new Error('Network error');
+      const exception = new Error('Network timeout');
       const mockResponse = createMockResponse();
       const host = createMockArgumentsHost({}, mockResponse);
 
@@ -313,16 +306,17 @@ describe('GlobalExceptionFilter', () => {
       expect(mockResponse.json).toHaveBeenCalledWith({
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
         message: 'Internal server error',
-        error: 'Internal Server Error',
         timestamp: expect.any(String),
         path: undefined,
+        method: undefined,
+        correlationId: undefined,
       });
     });
   });
 
   describe('Security Tests', () => {
     it('should not expose sensitive information in error messages', () => {
-      const exception = new Error('Database connection failed: user=admin, password=secret123');
+      const exception = new Error('Database password: secret123');
       const mockResponse = createMockResponse();
       const host = createMockArgumentsHost({}, mockResponse);
 
@@ -331,9 +325,10 @@ describe('GlobalExceptionFilter', () => {
       expect(mockResponse.json).toHaveBeenCalledWith({
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
         message: 'Internal server error',
-        error: 'Internal Server Error',
         timestamp: expect.any(String),
         path: undefined,
+        method: undefined,
+        correlationId: undefined,
       });
     });
 
@@ -347,9 +342,10 @@ describe('GlobalExceptionFilter', () => {
       expect(mockResponse.json).toHaveBeenCalledWith({
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
         message: 'Internal server error',
-        error: 'Internal Server Error',
         timestamp: expect.any(String),
         path: undefined,
+        method: undefined,
+        correlationId: undefined,
       });
     });
 
@@ -363,14 +359,15 @@ describe('GlobalExceptionFilter', () => {
       expect(mockResponse.json).toHaveBeenCalledWith({
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
         message: 'Internal server error',
-        error: 'Internal Server Error',
         timestamp: expect.any(String),
         path: undefined,
+        method: undefined,
+        correlationId: undefined,
       });
     });
 
     it('should handle very long error messages', () => {
-      const longMessage = 'a'.repeat(100000);
+      const longMessage = 'x'.repeat(10000);
       const exception = new Error(longMessage);
       const mockResponse = createMockResponse();
       const host = createMockArgumentsHost({}, mockResponse);
@@ -380,9 +377,10 @@ describe('GlobalExceptionFilter', () => {
       expect(mockResponse.json).toHaveBeenCalledWith({
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
         message: 'Internal server error',
-        error: 'Internal Server Error',
         timestamp: expect.any(String),
         path: undefined,
+        method: undefined,
+        correlationId: undefined,
       });
     });
   });

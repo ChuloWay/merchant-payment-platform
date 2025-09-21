@@ -27,7 +27,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         ? exception.getResponse()
         : 'Internal server error';
 
-    const correlationId = request.headers['x-correlation-id'] as string;
+    const correlationId = request.headers?.['x-correlation-id'] as string;
 
     const errorResponse = {
       statusCode: status,
