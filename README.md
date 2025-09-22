@@ -9,6 +9,7 @@ A comprehensive payment processing system built with NestJS, featuring merchant 
 - **Webhook System**: Secure webhook handling with HMAC signature validation
 - **Event-Driven Architecture**: AWS SQS integration for asynchronous payment events
 - **Comprehensive Testing**: 224 unit tests + 74 E2E tests with 100% pass rate
+- **Interactive Documentation**: Full Swagger/OpenAPI documentation with live testing
 - **Security**: API key authentication, input validation, and secure webhook processing
 - **Database**: PostgreSQL with TypeORM, migrations, and proper indexing
 
@@ -42,7 +43,7 @@ A comprehensive payment processing system built with NestJS, featuring merchant 
 - **Authentication**: API Key-based
 - **Validation**: Class-validator with DTOs
 - **Testing**: Jest with Supertest
-- **Documentation**: Swagger/OpenAPI
+- **Documentation**: Comprehensive Swagger/OpenAPI with interactive UI
 - **Logging**: Winston
 - **Security**: Helmet, CORS, HMAC validation
 
@@ -116,11 +117,26 @@ npm run start:prod
 
 The API will be available at `http://localhost:3000/api/v1`
 
+> **💡 Pro Tip**: Visit `http://localhost:3000/api/v1/docs` to explore the interactive Swagger documentation and test endpoints directly in your browser!
+
 ## 📚 API Documentation
 
-Once the application is running, visit:
-- **Swagger UI**: `http://localhost:3000/api/v1/docs`
-- **Health Check**: `http://localhost:3000/api/v1/health`
+### 🔍 **Interactive Swagger Documentation**
+
+The API includes comprehensive, interactive documentation powered by Swagger/OpenAPI:
+
+- **📖 Swagger UI**: `http://localhost:3000/api/v1/docs` - Interactive API explorer
+- **🔧 OpenAPI JSON**: `http://localhost:3000/api/v1/docs-json` - Machine-readable API spec
+- **❤️ Health Check**: `http://localhost:3000/api/v1/health` - Service health status
+
+### ✨ **Documentation Features**
+
+- **Complete API Coverage**: All 9 endpoints fully documented
+- **Request/Response Examples**: Real-world examples for Nigerian market
+- **Authentication Guide**: API key setup and usage
+- **Interactive Testing**: Try endpoints directly from the browser
+- **Schema Validation**: Detailed DTOs with validation rules
+- **Error Responses**: Comprehensive error code documentation
 
 ## 🔑 API Usage
 
