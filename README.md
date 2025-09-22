@@ -1,4 +1,4 @@
-# Payment System Assessment
+# Merchant Payment System
 
 A comprehensive payment processing system built with NestJS, featuring merchant management, payment processing, webhook handling, and event-driven architecture with AWS SQS.
 
@@ -58,8 +58,8 @@ A comprehensive payment processing system built with NestJS, featuring merchant 
 ### 1. Clone and Install
 
 ```bash
-git clone <repository-url>
-cd payment-system-assessment
+git clone https://github.com/ChuloWay/merchant-payment-platform.git
+cd merchant-payment-platform
 npm install
 ```
 
