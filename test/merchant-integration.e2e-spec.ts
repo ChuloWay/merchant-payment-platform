@@ -322,6 +322,20 @@ describe('Merchant Integration (e2e)', () => {
     });
 
     it('should handle case-insensitive API key header', async () => {
+      // Create a new merchant for this test to avoid race conditions
+      const timestamp = Date.now();
+      const merchantResponse = await request(app.getHttpServer())
+        .post('/api/v1/merchants')
+        .send({
+          name: 'Case Insensitive Test Merchant',
+          email: `case-insensitive-${timestamp}@test.com`,
+          webhookUrl: 'https://api.caseinsensitive.com/webhooks',
+        })
+        .expect(201);
+
+      const testMerchant = merchantResponse.body.data;
+      const testApiKey = testMerchant.apiKey;
+
       // Test with different case variations
       const variations = [
         'X-API-Key',

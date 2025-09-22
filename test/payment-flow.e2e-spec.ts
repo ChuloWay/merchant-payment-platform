@@ -226,10 +226,24 @@ describe('Payment Flow Integration (e2e)', () => {
     });
 
     it('should handle payment failure flow', async () => {
+      // Create a new merchant for this test
+      const timestamp = Date.now();
+      const merchantResponse = await request(app.getHttpServer())
+        .post('/api/v1/merchants')
+        .send({
+          name: 'Failure Test Merchant',
+          email: `failure-${timestamp}@test.com`,
+          webhookUrl: 'https://api.failuretest.com/webhooks',
+        })
+        .expect(201);
+
+      const testMerchant = merchantResponse.body.data;
+      const testApiKey = testMerchant.apiKey;
+
       // Create a new payment method for failure testing
       const paymentMethodResponse = await request(app.getHttpServer())
         .post('/api/v1/payment-methods')
-        .set('X-API-Key', apiKey)
+        .set('X-API-Key', testApiKey)
         .send({
           type: PaymentMethodType.BANK_ACCOUNT,
           provider: 'Paystack',
@@ -244,7 +258,7 @@ describe('Payment Flow Integration (e2e)', () => {
       // Initialize a payment
       const paymentResponse = await request(app.getHttpServer())
         .post('/api/v1/payments')
-        .set('X-API-Key', apiKey)
+        .set('X-API-Key', testApiKey)
         .send({
           amount: 15000.0,
           currency: 'NGN',
@@ -277,7 +291,7 @@ describe('Payment Flow Integration (e2e)', () => {
       // Verify payment status was updated to failed
       const failedPaymentResponse = await request(app.getHttpServer())
         .get(`/api/v1/payments/${payment.id}`)
-        .set('X-API-Key', apiKey)
+        .set('X-API-Key', testApiKey)
         .expect(200);
 
       const failedPayment = failedPaymentResponse.body.data;
@@ -353,7 +367,7 @@ describe('Payment Flow Integration (e2e)', () => {
       // Verify payment status was updated to cancelled
       const cancelledPaymentResponse = await request(app.getHttpServer())
         .get(`/api/v1/payments/${payment.id}`)
-        .set('X-API-Key', apiKey)
+        .set('X-API-Key', testApiKey)
         .expect(200);
 
       const cancelledPayment = cancelledPaymentResponse.body.data;
@@ -363,10 +377,24 @@ describe('Payment Flow Integration (e2e)', () => {
 
   describe('Payment Method Management', () => {
     it('should create and manage multiple payment methods', async () => {
+      // Create a new merchant for this test
+      const timestamp = Date.now();
+      const merchantResponse = await request(app.getHttpServer())
+        .post('/api/v1/merchants')
+        .send({
+          name: 'Multiple Payment Methods Test Merchant',
+          email: `multiple-${timestamp}@test.com`,
+          webhookUrl: 'https://api.multipletest.com/webhooks',
+        })
+        .expect(201);
+
+      const testMerchant = merchantResponse.body.data;
+      const testApiKey = testMerchant.apiKey;
+
       // Create USSD payment method
       const ussdPaymentMethodResponse = await request(app.getHttpServer())
         .post('/api/v1/payment-methods')
-        .set('X-API-Key', apiKey)
+        .set('X-API-Key', testApiKey)
         .send({
           type: PaymentMethodType.USSD,
           provider: 'GTBank',
@@ -383,7 +411,7 @@ describe('Payment Flow Integration (e2e)', () => {
       // Create wallet payment method
       const walletPaymentMethodResponse = await request(app.getHttpServer())
         .post('/api/v1/payment-methods')
-        .set('X-API-Key', apiKey)
+        .set('X-API-Key', testApiKey)
         .send({
           type: PaymentMethodType.WALLET,
           provider: 'Paga',
@@ -400,17 +428,17 @@ describe('Payment Flow Integration (e2e)', () => {
       // List all payment methods
       const paymentMethodsResponse = await request(app.getHttpServer())
         .get('/api/v1/payment-methods')
-        .set('X-API-Key', apiKey)
+        .set('X-API-Key', testApiKey)
         .expect(200);
 
       const paymentMethods = paymentMethodsResponse.body.data;
       expect(Array.isArray(paymentMethods)).toBe(true);
-      expect(paymentMethods.length).toBeGreaterThanOrEqual(3); // card, bank_account, ussd, wallet
+      expect(paymentMethods.length).toBeGreaterThanOrEqual(2); // ussd, wallet
 
       // Deactivate a payment method
       const deactivateResponse = await request(app.getHttpServer())
         .delete(`/api/v1/payment-methods/${ussdPaymentMethod.id}`)
-        .set('X-API-Key', apiKey)
+        .set('X-API-Key', testApiKey)
         .expect(200);
 
       expect(deactivateResponse.body.data).toBe(null);

@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { MerchantsService } from './merchants.service';
 import { Merchant } from './entities/merchant.entity';
 import { CreateMerchantDto } from './dto/create-merchant.dto';
@@ -191,8 +191,9 @@ describe('MerchantsService', () => {
 
   describe('findById', () => {
     it('should return merchant by ID', async () => {
+      const validUuid = '123e4567-e89b-12d3-a456-426614174000';
       const mockMerchant = {
-        id: 'merchant-id',
+        id: validUuid,
         name: 'Test Merchant',
         email: 'test@merchant.com',
         isActive: true,
@@ -200,33 +201,33 @@ describe('MerchantsService', () => {
 
       mockRepository.findOne.mockResolvedValue(mockMerchant);
 
-      const result = await service.findById('merchant-id');
+      const result = await service.findById(validUuid);
 
       expect(mockRepository.findOne).toHaveBeenCalledWith({
-        where: { id: 'merchant-id' },
+        where: { id: validUuid },
       });
       expect(result).toEqual(mockMerchant);
     });
 
     it('should throw NotFoundException when merchant not found', async () => {
+      const validUuid = '123e4567-e89b-12d3-a456-426614174001';
       mockRepository.findOne.mockResolvedValue(null);
 
-      await expect(service.findById('non-existent-id')).rejects.toThrow(
+      await expect(service.findById(validUuid)).rejects.toThrow(
         NotFoundException,
       );
       expect(mockRepository.findOne).toHaveBeenCalledWith({
-        where: { id: 'non-existent-id' },
+        where: { id: validUuid },
       });
     });
 
     it('should handle invalid UUID format', async () => {
       const invalidId = 'invalid-uuid';
       
-      mockRepository.findOne.mockResolvedValue(null);
-
       await expect(service.findById(invalidId)).rejects.toThrow(
-        NotFoundException,
+        BadRequestException,
       );
+      expect(mockRepository.findOne).not.toHaveBeenCalled();
     });
   });
 
@@ -287,11 +288,10 @@ describe('MerchantsService', () => {
       // Test that service methods properly validate permissions
       const unauthorizedId = 'unauthorized-merchant-id';
       
-      mockRepository.findOne.mockResolvedValue(null);
-
       await expect(service.findById(unauthorizedId)).rejects.toThrow(
-        NotFoundException,
+        BadRequestException,
       );
+      expect(mockRepository.findOne).not.toHaveBeenCalled();
     });
 
     it('should handle large payloads gracefully', async () => {
