@@ -12,18 +12,31 @@ import { PaymentMethodsService } from '../src/modules/payment-methods/payment-me
 import { PaymentsService } from '../src/modules/payments/payments.service';
 import { PaymentMethodType } from '../src/modules/payment-methods/entities/payment-method.entity';
 import { PaymentStatus } from '../src/modules/payments/entities/payment.entity';
+import { DataSource } from 'typeorm';
 
 describe('Payment Flow Integration (e2e)', () => {
   let app: INestApplication<App>;
   let merchantsService: MerchantsService;
   let paymentMethodsService: PaymentMethodsService;
   let paymentsService: PaymentsService;
+  let dataSource: DataSource;
 
   let merchant: any;
   let paymentMethod: any;
   let apiKey: string;
 
   jest.setTimeout(30000); // 30 seconds timeout for all tests
+
+  // Helper function to clean up database
+  async function cleanupDatabase() {
+    try {
+      await dataSource.query('DELETE FROM payments');
+      await dataSource.query('DELETE FROM payment_methods');
+      await dataSource.query('DELETE FROM merchants');
+    } catch (error) {
+      console.warn('Database cleanup warning:', error.message);
+    }
+  }
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -65,6 +78,15 @@ describe('Payment Flow Integration (e2e)', () => {
     merchantsService = moduleFixture.get<MerchantsService>(MerchantsService);
     paymentMethodsService = moduleFixture.get<PaymentMethodsService>(PaymentMethodsService);
     paymentsService = moduleFixture.get<PaymentsService>(PaymentsService);
+    dataSource = moduleFixture.get<DataSource>(DataSource);
+
+    // Clean up any existing test data
+    await cleanupDatabase();
+  });
+
+  afterEach(async () => {
+    // Clean up test data after each test
+    await cleanupDatabase();
   });
 
   afterAll(async () => {
@@ -90,7 +112,7 @@ describe('Payment Flow Integration (e2e)', () => {
       expect(merchant).toHaveProperty('id');
       expect(merchant).toHaveProperty('apiKey');
       expect(merchant.name).toBe('Lagos Tech Solutions Ltd');
-      expect(merchant.email).toBe('contact@lagostech.com.ng');
+      expect(merchant.email).toBe(`contact-${timestamp}@lagostech.com.ng`);
 
       // Step 2: Create a payment method for the merchant
       const paymentMethodResponse = await request(app.getHttpServer())
@@ -264,14 +286,46 @@ describe('Payment Flow Integration (e2e)', () => {
     });
 
     it('should handle payment cancellation flow', async () => {
+      // Create merchant and payment method for this test
+      const timestamp = Date.now();
+      const merchantResponse = await request(app.getHttpServer())
+        .post('/api/v1/merchants')
+        .send({
+          name: 'Cancel Test Merchant',
+          email: `cancel-${timestamp}@test.com`,
+          webhookUrl: 'https://api.canceltest.com/webhooks',
+        })
+        .expect(201);
+
+      const testMerchant = merchantResponse.body.data;
+      const testApiKey = testMerchant.apiKey;
+
+      const paymentMethodResponse = await request(app.getHttpServer())
+        .post('/api/v1/payment-methods')
+        .set('X-API-Key', testApiKey)
+        .send({
+          type: PaymentMethodType.CARD,
+          lastFour: '1111',
+          metadata: {
+            cardNumber: '4111111111111111',
+            expiryMonth: '12',
+            expiryYear: '2025',
+            cvv: '123',
+            cardholderName: 'Cancel Test User',
+          },
+        })
+        .expect(201);
+
+      const testPaymentMethod = paymentMethodResponse.body.data;
+
       // Initialize a payment
       const paymentResponse = await request(app.getHttpServer())
         .post('/api/v1/payments')
-        .set('X-API-Key', apiKey)
+        .set('X-API-Key', testApiKey)
         .send({
           amount: 5000.0,
           currency: 'NGN',
-          paymentMethodId: paymentMethod.id,
+          paymentMethodId: testPaymentMethod.id,
           metadata: {
             customerId: 'CUST-CANCEL-TEST',
             orderId: 'ORDER-CANCEL-TEST',
@@ -366,13 +420,45 @@ describe('Payment Flow Integration (e2e)', () => {
 
   describe('Security and Validation', () => {
     it('should reject unauthorized requests', async () => {
+      // Create merchant and payment method for this test
+      const timestamp = Date.now();
+      const merchantResponse = await request(app.getHttpServer())
+        .post('/api/v1/merchants')
+        .send({
+          name: 'Unauthorized Test Merchant',
+          email: `unauthorized-${timestamp}@test.com`,
+          webhookUrl: 'https://api.unauthorizedtest.com/webhooks',
+        })
+        .expect(201);
+
+      const testMerchant = merchantResponse.body.data;
+      const testApiKey = testMerchant.apiKey;
+
+      const paymentMethodResponse = await request(app.getHttpServer())
+        .post('/api/v1/payment-methods')
+        .set('X-API-Key', testApiKey)
+        .send({
+          type: PaymentMethodType.CARD,
+          lastFour: '1111',
+          metadata: {
+            cardNumber: '4111111111111111',
+            expiryMonth: '12',
+            expiryYear: '2025',
+            cvv: '123',
+            cardholderName: 'Unauthorized Test User',
+          },
+        })
+        .expect(201);
+
+      const testPaymentMethod = paymentMethodResponse.body.data;
+
       // Try to access protected endpoint without API key
       await request(app.getHttpServer())
         .post('/api/v1/payments')
         .send({
           amount: 1000,
           currency: 'NGN',
-          paymentMethodId: paymentMethod.id,
+          paymentMethodId: testPaymentMethod.id,
         })
         .expect(401);
 
@@ -389,63 +475,127 @@ describe('Payment Flow Integration (e2e)', () => {
     });
 
     it('should validate payment method ownership', async () => {
-      // Create another merchant
-      const anotherTimestamp = Date.now() + 1;
-      const anotherMerchantResponse = await request(app.getHttpServer())
+      // Create first merchant and payment method
+      const timestamp1 = Date.now();
+      const merchant1Response = await request(app.getHttpServer())
         .post('/api/v1/merchants')
         .send({
-          name: 'Another Merchant Ltd',
-          email: `contact-${anotherTimestamp}@anothermerchant.com.ng`,
+          name: 'First Merchant Ltd',
+          email: `first-${timestamp1}@test.com`,
+          webhookUrl: 'https://api.firsttest.com/webhooks',
         })
         .expect(201);
 
-      const anotherMerchant = anotherMerchantResponse.body.data;
+      const merchant1 = merchant1Response.body.data;
+
+      const paymentMethod1Response = await request(app.getHttpServer())
+        .post('/api/v1/payment-methods')
+        .set('X-API-Key', merchant1.apiKey)
+        .send({
+          type: PaymentMethodType.CARD,
+          lastFour: '1111',
+          metadata: {
+            cardNumber: '4111111111111111',
+            expiryMonth: '12',
+            expiryYear: '2025',
+            cvv: '123',
+            cardholderName: 'First Test User',
+          },
+        })
+        .expect(201);
+
+      const paymentMethod1 = paymentMethod1Response.body.data;
+
+      // Create second merchant
+      const timestamp2 = Date.now() + 1;
+      const merchant2Response = await request(app.getHttpServer())
+        .post('/api/v1/merchants')
+        .send({
+          name: 'Second Merchant Ltd',
+          email: `second-${timestamp2}@test.com`,
+          webhookUrl: 'https://api.secondtest.com/webhooks',
+        })
+        .expect(201);
+
+      const merchant2 = merchant2Response.body.data;
 
       // Try to use first merchant's payment method with second merchant's API key
       await request(app.getHttpServer())
         .post('/api/v1/payments')
-        .set('X-API-Key', anotherMerchant.apiKey)
+        .set('X-API-Key', merchant2.apiKey)
         .send({
           amount: 1000,
           currency: 'NGN',
-          paymentMethodId: paymentMethod.id, // First merchant's payment method
+          paymentMethodId: paymentMethod1.id, // First merchant's payment method
         })
         .expect(404); // Payment method not found for this merchant
     });
 
     it('should validate input data', async () => {
+      // Create merchant and payment method for this test
+      const timestamp = Date.now();
+      const merchantResponse = await request(app.getHttpServer())
+        .post('/api/v1/merchants')
+        .send({
+          name: 'Validation Test Merchant',
+          email: `validation-${timestamp}@test.com`,
+          webhookUrl: 'https://api.validationtest.com/webhooks',
+        })
+        .expect(201);
+
+      const testMerchant = merchantResponse.body.data;
+      const testApiKey = testMerchant.apiKey;
+
+      const paymentMethodResponse = await request(app.getHttpServer())
+        .post('/api/v1/payment-methods')
+        .set('X-API-Key', testApiKey)
+        .send({
+          type: PaymentMethodType.CARD,
+          lastFour: '1111',
+          metadata: {
+            cardNumber: '4111111111111111',
+            expiryMonth: '12',
+            expiryYear: '2025',
+            cvv: '123',
+            cardholderName: 'Validation Test User',
+          },
+        })
+        .expect(201);
+
+      const testPaymentMethod = paymentMethodResponse.body.data;
+
       // Try to create payment with invalid amount
       await request(app.getHttpServer())
         .post('/api/v1/payments')
-        .set('X-API-Key', apiKey)
+        .set('X-API-Key', testApiKey)
         .send({
           amount: -100, // Invalid negative amount
           currency: 'NGN',
-          paymentMethodId: paymentMethod.id,
+          paymentMethodId: testPaymentMethod.id,
         })
         .expect(400);
 
       // Try to create payment with invalid currency
       await request(app.getHttpServer())
         .post('/api/v1/payments')
-        .set('X-API-Key', apiKey)
+        .set('X-API-Key', testApiKey)
         .send({
           amount: 1000,
           currency: 'USD', // Invalid currency (should be NGN)
-          paymentMethodId: paymentMethod.id,
+          paymentMethodId: testPaymentMethod.id,
         })
         .expect(400);
 
       // Try to create payment with non-existent payment method
       await request(app.getHttpServer())
         .post('/api/v1/payments')
-        .set('X-API-Key', apiKey)
+        .set('X-API-Key', testApiKey)
         .send({
           amount: 1000,
           currency: 'NGN',
           paymentMethodId: 'non-existent-id',
         })
-        .expect(404);
+        .expect(400); // UUID validation catches this before it reaches the service
     });
   });
 
@@ -461,14 +611,46 @@ describe('Payment Flow Integration (e2e)', () => {
     });
 
     it('should handle webhook for already completed payment', async () => {
+      // Create merchant and payment method for this test
+      const timestamp = Date.now();
+      const merchantResponse = await request(app.getHttpServer())
+        .post('/api/v1/merchants')
+        .send({
+          name: 'Completed Test Merchant',
+          email: `completed-${timestamp}@test.com`,
+          webhookUrl: 'https://api.completedtest.com/webhooks',
+        })
+        .expect(201);
+
+      const testMerchant = merchantResponse.body.data;
+      const testApiKey = testMerchant.apiKey;
+
+      const paymentMethodResponse = await request(app.getHttpServer())
+        .post('/api/v1/payment-methods')
+        .set('X-API-Key', testApiKey)
+        .send({
+          type: PaymentMethodType.CARD,
+          lastFour: '1111',
+          metadata: {
+            cardNumber: '4111111111111111',
+            expiryMonth: '12',
+            expiryYear: '2025',
+            cvv: '123',
+            cardholderName: 'Completed Test User',
+          },
+        })
+        .expect(201);
+
+      const testPaymentMethod = paymentMethodResponse.body.data;
+
       // First, create and complete a payment
       const paymentResponse = await request(app.getHttpServer())
         .post('/api/v1/payments')
-        .set('X-API-Key', apiKey)
+        .set('X-API-Key', testApiKey)
         .send({
           amount: 1000,
           currency: 'NGN',
-          paymentMethodId: paymentMethod.id,
+          paymentMethodId: testPaymentMethod.id,
         })
         .expect(201);
 

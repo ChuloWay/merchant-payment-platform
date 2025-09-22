@@ -3,10 +3,11 @@ import {
   NotFoundException,
   ConflictException,
   Logger,
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { v4 as uuidv4 } from 'uuid';
+import { v4 as uuidv4, validate as uuidValidate } from 'uuid';
 import { Merchant } from './entities/merchant.entity';
 import { CreateMerchantDto } from './dto/create-merchant.dto';
 import { MerchantResponseDto } from './dto/merchant-response.dto';
@@ -50,6 +51,11 @@ export class MerchantsService {
   }
 
   async findById(id: string): Promise<MerchantResponseDto> {
+    // Validate UUID format
+    if (!uuidValidate(id)) {
+      throw new BadRequestException('Invalid merchant ID format');
+    }
+
     const merchant = await this.merchantRepository.findOne({
       where: { id },
     });

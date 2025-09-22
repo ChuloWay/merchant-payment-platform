@@ -9,6 +9,7 @@ import {
   Max,
   IsString,
   Length,
+  IsIn,
 } from 'class-validator';
 
 export class InitializePaymentDto {
@@ -25,7 +26,7 @@ export class InitializePaymentDto {
   amount: number;
 
   @ApiProperty({
-    description: 'Payment currency code (defaults to NGN)',
+    description: 'Payment currency code (must be NGN)',
     example: 'NGN',
     minLength: 3,
     maxLength: 3,
@@ -34,6 +35,7 @@ export class InitializePaymentDto {
   @IsOptional()
   @IsString()
   @Length(3, 3)
+  @IsIn(['NGN'], { message: 'Only NGN currency is supported' })
   currency?: string;
 
   @ApiProperty({
