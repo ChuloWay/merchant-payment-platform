@@ -204,6 +204,196 @@ curl -X POST http://localhost:3000/api/v1/webhooks/payment-gateway \
   }'
 ```
 
+## 🔧 Webhook Mocking & Testing
+
+### Understanding Webhook Signatures
+
+In production, payment gateways (Paystack, Flutterwave) automatically generate and send webhooks with HMAC-SHA256 signatures. For testing and demos, you need to manually simulate this process.
+
+### How Webhook Signatures Work
+
+1. **Payment Gateway** processes payment and generates signature using shared secret
+2. **Gateway** sends webhook with signature in `X-Webhook-Signature` header
+3. **Your System** validates signature using the same secret
+4. **If Valid**: Process webhook and update payment status
+
+### Mocking Webhooks for Testing
+
+#### Step 1: Create a Payment
+```bash
+curl -X POST http://localhost:3000/api/v1/payments \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: pk_your_api_key_here" \
+  -d '{
+    "amount": 50000,
+    "currency": "NGN",
+    "paymentMethodId": "payment_method_uuid",
+    "metadata": {
+      "orderId": "ORDER-123"
+    }
+  }'
+
+# Response includes payment reference
+{
+  "data": {
+    "reference": "PAY-MG4V5M0I-91729641",
+    "status": "pending"
+  }
+}
+```
+
+#### Step 2: Generate Correct Signature
+```bash
+# Generate signature for your specific payload
+node -e "
+const crypto = require('crypto');
+const payload = JSON.stringify({
+  'reference': 'PAY-MG514QDK-7C233A6C',
+  'status': 'completed',
+  'gatewayReference': null
+});
+const signature = crypto.createHmac('sha256', 'test-webhook-secret').update(payload).digest('hex');
+console.log('Use this signature: sha256=' + signature);
+"
+```
+
+#### Step 3: Send Webhook with Signature
+```bash
+curl -X POST http://localhost:3000/api/v1/webhooks/payment-gateway \
+  -H "Content-Type: application/json" \
+  -H "X-Webhook-Signature: sha256=generated_signature_here" \
+  -d '{
+    "reference": "PAY-MG4V5M0I-91729641",
+    "status": "completed",
+    "gatewayReference": "paystack_ref_123456"
+  }'
+```
+
+### Using Swagger UI for Webhook Testing
+
+1. **Open Swagger UI**: `http://localhost:3000/api/v1/docs`
+2. **Navigate to**: Webhooks → `POST /webhooks/payment-gateway`
+3. **Headers**:
+   - `x-webhook-signature`: Use the generated signature from Step 2
+4. **Request Body**:
+```json
+{
+  "reference": "PAY-MG4V5M0I-91729641",
+  "status": "completed",
+  "gatewayReference": "paystack_ref_123456"
+}
+```
+
+### Webhook Testing Scenarios
+
+#### Payment Completion
+```bash
+curl -X POST http://localhost:3000/api/v1/webhooks/payment-gateway \
+  -H "Content-Type: application/json" \
+  -d '{
+    "reference": "PAY-MG4V5M0I-91729641",
+    "status": "completed",
+    "gatewayReference": "paystack_ref_123456"
+  }'
+```
+
+#### Payment Failure
+```bash
+curl -X POST http://localhost:3000/api/v1/webhooks/payment-gateway \
+  -H "Content-Type: application/json" \
+  -d '{
+    "reference": "PAY-MG4V5M0I-91729641",
+    "status": "failed",
+    "failureReason": "Insufficient funds"
+  }'
+```
+
+#### Payment Cancellation
+```bash
+curl -X POST http://localhost:3000/api/v1/webhooks/payment-gateway \
+  -H "Content-Type: application/json" \
+  -d '{
+    "reference": "PAY-MG4V5M0I-91729641",
+    "status": "cancelled"
+  }'
+```
+
+#### Payment Refund
+```bash
+curl -X POST http://localhost:3000/api/v1/webhooks/payment-gateway \
+  -H "Content-Type: application/json" \
+  -d '{
+    "reference": "PAY-MG4V5M0I-91729641",
+    "status": "refunded",
+    "gatewayReference": "refund_ref_123"
+  }'
+```
+
+### Signature Generation Details
+
+#### Why Each Webhook Needs Its Own Signature
+- **HMAC-SHA256** is deterministic but sensitive to input
+- **Any difference** in payload (spaces, field order) = different signature
+- **Each webhook** has unique payload = unique signature
+
+#### Signature Generation Process
+```javascript
+const crypto = require('crypto');
+const webhookSecret = 'test-webhook-secret'; // From .env
+const payload = JSON.stringify(webhookData); // Exact payload format
+const signature = crypto
+  .createHmac('sha256', webhookSecret)
+  .update(payload)
+  .digest('hex');
+```
+
+#### Common Signature Issues
+- **Wrong payload format**: Pretty JSON vs minified JSON
+- **Missing fields**: Payload must match exactly
+- **Wrong secret**: Must use same secret as system expects
+
+### Production vs Testing
+
+#### In Production (Automatic)
+- ✅ Payment gateways generate signatures automatically
+- ✅ Gateways send webhooks automatically
+- ✅ Your system validates automatically
+- ✅ Everything is automated
+
+#### For Testing (Manual)
+- 🔧 You generate signatures manually
+- 🔧 You send webhooks manually
+- 🔧 You simulate gateway behavior
+- 🔧 Perfect for demos and testing
+
+### Environment Configuration
+
+```env
+# Webhook secret for signature validation
+WEBHOOK_SECRET=test-webhook-secret
+
+# For production, use your actual gateway webhook secret
+# WEBHOOK_SECRET=sk_test_your_actual_webhook_secret_here
+```
+
+### Troubleshooting Webhook Issues
+
+#### "Invalid webhook signature" Error
+1. **Check payload format**: Must be exact JSON.stringify() format
+2. **Verify secret**: Must match WEBHOOK_SECRET in .env
+3. **Generate correct signature**: Use the exact payload that will be sent
+
+#### Debug Signature Validation
+Add debug logs to see what's happening:
+```typescript
+console.log('Received signature:', signature);
+console.log('Expected signature:', expectedSignature);
+console.log('Payload:', JSON.stringify(payload));
+```
+
+#### Skip Signature Validation (Testing Only)
+For testing, you can send webhooks without signatures - the system will process them but log a warning.
+
 ## 🧪 Testing
 
 ### Run All Tests

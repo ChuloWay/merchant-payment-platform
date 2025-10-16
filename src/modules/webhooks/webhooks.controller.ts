@@ -47,18 +47,35 @@ export class WebhooksController {
     @Headers('x-webhook-signature') signature?: string,
   ) {
     try {
+      console.log('🔍 DEBUG: Webhook received');
+      console.log('📥 Signature header:', signature);
+      console.log(
+        '📥 Webhook payload:',
+        JSON.stringify(webhookPayload, null, 2),
+      );
+
       if (signature) {
+        console.log('🔐 Signature validation starting...');
+
+        // Remove 'sha256=' prefix if present
+        const cleanSignature = signature.replace('sha256=', '');
+        console.log('🧹 Cleaned signature:', cleanSignature);
+
         const isValid = this.webhooksService.validateWebhookSignature(
           JSON.stringify(webhookPayload),
-          signature,
+          cleanSignature,
         );
 
         if (!isValid) {
+          console.log('❌ Signature validation failed');
           this.logger.warn(
             `Invalid webhook signature for payment: ${webhookPayload.reference}`,
           );
           throw new BadRequestException('Invalid webhook signature');
         }
+        console.log('✅ Signature validation passed');
+      } else {
+        console.log('⚠️ No signature provided, skipping validation');
       }
 
       await this.webhooksService.processPaymentGatewayWebhook(webhookPayload);

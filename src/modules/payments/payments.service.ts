@@ -67,7 +67,6 @@ export class PaymentsService {
 
       const savedPayment = await manager.save(payment);
 
-      // Temporarily disable SQS to test payment creation
       try {
         await this.sqsService.publishEvent('payment-initiated', {
           paymentId: savedPayment.id,
