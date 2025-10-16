@@ -13,6 +13,7 @@ import { Merchant } from '../merchants/entities/merchant.entity';
 import { InitializePaymentDto } from './dto/initialize-payment.dto';
 import { PaymentResponseDto } from './dto/payment-response.dto';
 import { SqsService } from '../events/sqs.service';
+import { SnsService } from '../events/sns.service';
 
 @Injectable()
 export class PaymentsService {
@@ -27,6 +28,7 @@ export class PaymentsService {
     private readonly merchantRepository: Repository<Merchant>,
     private readonly dataSource: DataSource,
     private readonly sqsService: SqsService,
+    private readonly snsService: SnsService,
   ) {}
 
   async initializePayment(
@@ -68,18 +70,33 @@ export class PaymentsService {
       const savedPayment = await manager.save(payment);
 
       try {
-        await this.sqsService.publishEvent('payment-initiated', {
-          paymentId: savedPayment.id,
-          reference: savedPayment.reference,
-          amount: savedPayment.amount,
-          currency: savedPayment.currency,
-          merchantId: savedPayment.merchantId,
-          paymentMethodId: savedPayment.paymentMethodId,
-          metadata: savedPayment.metadata,
-          initiatedAt: savedPayment.initiatedAt,
-        });
+        if (this.snsService.isServiceEnabled()) {
+          await this.snsService.publishPaymentEvent('payment.initiated', {
+            paymentId: savedPayment.id,
+            reference: savedPayment.reference,
+            amount: savedPayment.amount,
+            currency: savedPayment.currency,
+            merchantId: savedPayment.merchantId,
+            paymentMethodId: savedPayment.paymentMethodId,
+            metadata: savedPayment.metadata,
+            initiatedAt: savedPayment.initiatedAt,
+          });
+          this.logger.log(`✓ Event published to SNS: payment.initiated`);
+        } else {
+          await this.sqsService.publishEvent('payment-initiated', {
+            paymentId: savedPayment.id,
+            reference: savedPayment.reference,
+            amount: savedPayment.amount,
+            currency: savedPayment.currency,
+            merchantId: savedPayment.merchantId,
+            paymentMethodId: savedPayment.paymentMethodId,
+            metadata: savedPayment.metadata,
+            initiatedAt: savedPayment.initiatedAt,
+          });
+          this.logger.log(`✓ Event published to SQS (fallback)`);
+        }
       } catch (error) {
-        this.logger.warn('SQS event publishing failed, continuing with payment creation', error.message);
+        this.logger.warn('Event publishing failed, continuing with payment creation', error.message);
       }
 
       this.logger.log(
@@ -136,24 +153,45 @@ export class PaymentsService {
         throw new NotFoundException('Payment not found after update');
       }
 
-      // Publish appropriate event based on status
-      const eventType = status === PaymentStatus.COMPLETED ? 'payment-completed' : 
-                       status === PaymentStatus.FAILED ? 'payment-failed' :
-                       status === PaymentStatus.CANCELLED ? 'payment-cancelled' :
-                       status === PaymentStatus.REFUNDED ? 'payment-refunded' :
-                       'payment-status-updated';
+      const eventTypeMap = {
+        [PaymentStatus.COMPLETED]: 'payment.completed',
+        [PaymentStatus.FAILED]: 'payment.failed',
+        [PaymentStatus.CANCELLED]: 'payment.cancelled',
+        [PaymentStatus.REFUNDED]: 'payment.refunded',
+      };
 
-      await this.sqsService.publishEvent(eventType, {
-        paymentId: updatedPayment.id,
-        reference: updatedPayment.reference,
-        status: updatedPayment.status,
-        amount: updatedPayment.amount,
-        currency: updatedPayment.currency,
-        merchantId: updatedPayment.merchantId,
-        gatewayReference: updatedPayment.gatewayReference,
-        failureReason: updatedPayment.failureReason,
-        completedAt: updatedPayment.completedAt,
-      });
+      const eventType = eventTypeMap[status] || 'payment.status-updated';
+
+      try {
+        if (this.snsService.isServiceEnabled()) {
+          await this.snsService.publishPaymentEvent(eventType as any, {
+            paymentId: updatedPayment.id,
+            reference: updatedPayment.reference,
+            status: updatedPayment.status,
+            amount: updatedPayment.amount,
+            currency: updatedPayment.currency,
+            merchantId: updatedPayment.merchantId,
+            gatewayReference: updatedPayment.gatewayReference,
+            failureReason: updatedPayment.failureReason,
+            completedAt: updatedPayment.completedAt,
+          });
+          this.logger.log(`✓ Event published to SNS: ${eventType}`);
+        } else {
+          await this.sqsService.publishEvent(eventType, {
+            paymentId: updatedPayment.id,
+            reference: updatedPayment.reference,
+            status: updatedPayment.status,
+            amount: updatedPayment.amount,
+            currency: updatedPayment.currency,
+            merchantId: updatedPayment.merchantId,
+            gatewayReference: updatedPayment.gatewayReference,
+            failureReason: updatedPayment.failureReason,
+            completedAt: updatedPayment.completedAt,
+          });
+        }
+      } catch (error) {
+        this.logger.warn('Event publishing failed', error.message);
+      }
 
       this.logger.log(
         `Payment status updated: ${updatedPayment.reference} - Status: ${status}`,
