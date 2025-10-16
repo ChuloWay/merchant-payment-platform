@@ -14,12 +14,17 @@ export class EventsConsumer {
 
   @Cron(CronExpression.EVERY_10_SECONDS)
   async handlePaymentEvents() {
-    // Only run SQS consumer if AWS credentials are properly configured
+    const isEnabled = this.configService.get<boolean>('ENABLE_SQS_CONSUMER', false);
+    
+    if (!isEnabled) {
+      return;
+    }
+
     const awsAccessKey = this.configService.get('sqs.accessKeyId');
     const awsSecretKey = this.configService.get('sqs.secretAccessKey');
     
     if (!awsAccessKey || !awsSecretKey || awsAccessKey === 'your_aws_access_key_here') {
-      return; // Skip SQS consumption if credentials are not configured
+      return;
     }
 
     try {
