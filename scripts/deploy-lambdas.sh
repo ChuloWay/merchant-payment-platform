@@ -50,7 +50,8 @@ aws_local lambda create-function \
     --role arn:aws:iam::000000000000:role/lambda-execution-role \
     --zip-file fileb:///lambdas/payment-processor/function.zip \
     --timeout 300 \
-    --memory-size 512
+    --memory-size 512 \
+    --environment 'Variables={ENABLE_TEMPORAL_WORKFLOWS=true,TEMPORAL_ADDRESS=host.docker.internal:7233,TEMPORAL_NAMESPACE=default,TEMPORAL_TASK_QUEUE=payment-processing}'
 
 echo "✓ payment-processor Lambda created"
 
