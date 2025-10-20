@@ -14,6 +14,7 @@ import { InitializePaymentDto } from './dto/initialize-payment.dto';
 import { PaymentResponseDto } from './dto/payment-response.dto';
 import { SqsService } from '../events/sqs.service';
 import { SnsService } from '../events/sns.service';
+import { TemporalClientService } from '../../temporal/temporal-client.service';
 
 @Injectable()
 export class PaymentsService {
@@ -29,6 +30,7 @@ export class PaymentsService {
     private readonly dataSource: DataSource,
     private readonly sqsService: SqsService,
     private readonly snsService: SnsService,
+    private readonly temporalClientService: TemporalClientService,
   ) {}
 
   async initializePayment(
@@ -94,6 +96,20 @@ export class PaymentsService {
             initiatedAt: savedPayment.initiatedAt,
           });
           this.logger.log(`✓ Event published to SQS (fallback)`);
+        }
+        
+        // Start Temporal workflow directly from NestJS
+        if (this.temporalClientService.isServiceEnabled()) {
+          await this.temporalClientService.startPaymentProcessingWorkflow({
+            paymentId: savedPayment.id,
+            reference: savedPayment.reference,
+            amount: savedPayment.amount,
+            currency: savedPayment.currency,
+            merchantId: savedPayment.merchantId,
+            paymentMethodId: savedPayment.paymentMethodId,
+            metadata: savedPayment.metadata,
+          });
+          this.logger.log(`✓ Temporal workflow started: ${savedPayment.reference}`);
         }
       } catch (error) {
         this.logger.warn('Event publishing failed, continuing with payment creation', error.message);

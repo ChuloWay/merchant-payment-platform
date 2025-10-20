@@ -37,9 +37,12 @@ echo "✓ IAM role created"
 echo ""
 echo "Step 2: Creating payment-processor Lambda function..."
 
-# Create zip file
+# Install dependencies and create zip file
 cd lambdas/payment-processor
-zip -q -r function.zip index.js ../shared
+echo "  Installing dependencies..."
+npm install --production > /dev/null 2>&1
+echo "  Creating zip bundle..."
+zip -q -r function.zip index.js ../shared node_modules/
 cd ../..
 
 # Create Lambda function
@@ -51,16 +54,19 @@ aws_local lambda create-function \
     --zip-file fileb:///lambdas/payment-processor/function.zip \
     --timeout 300 \
     --memory-size 512 \
-    --environment 'Variables={ENABLE_TEMPORAL_WORKFLOWS=true,TEMPORAL_ADDRESS=host.docker.internal:7233,TEMPORAL_NAMESPACE=default,TEMPORAL_TASK_QUEUE=payment-processing}'
+    --environment 'Variables={ENABLE_TEMPORAL_WORKFLOWS=true,TEMPORAL_ADDRESS=172.23.0.5:7233,TEMPORAL_NAMESPACE=default,TEMPORAL_TASK_QUEUE=payment-processing}'
 
 echo "✓ payment-processor Lambda created"
 
 echo ""
 echo "Step 3: Creating webhook-sender Lambda function..."
 
-# Create zip file
+# Install dependencies and create zip file
 cd lambdas/webhook-sender
-zip -q -r function.zip index.js ../shared
+echo "  Installing dependencies..."
+npm install --production > /dev/null 2>&1
+echo "  Creating zip bundle..."
+zip -q -r function.zip index.js ../shared node_modules/
 cd ../..
 
 # Create Lambda function

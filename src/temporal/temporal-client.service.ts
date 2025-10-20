@@ -83,6 +83,11 @@ export class TemporalClientService implements OnModuleInit {
     }
   }
 
+  // Alias for consistency
+  async startPaymentProcessingWorkflow(input: PaymentWorkflowInput): Promise<{ workflowId: string; runId: string } | null> {
+    return this.startPaymentWorkflow(input);
+  }
+
   async getWorkflowResult(workflowId: string): Promise<PaymentWorkflowResult | null> {
     if (!this.client) {
       this.logger.warn('Temporal client not available');
