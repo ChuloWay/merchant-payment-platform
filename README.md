@@ -1,524 +1,456 @@
-# Merchant Payment System
+# 🚀 Payment System with Temporal Workflow Orchestration
 
-A comprehensive payment processing system built with NestJS, featuring merchant management, payment processing, webhook handling, and event-driven architecture with AWS SQS.
+A production-ready, event-driven payment processing system built with **NestJS**, **AWS services** (SNS/SQS/Lambda), and **Temporal** workflow orchestration.
 
-## 🚀 Features
+## 📊 Architecture Overview
 
-- **Merchant Management**: Registration, API key generation, and management
-- **Payment Processing**: Initialize, track, and process payments with multiple payment methods
-- **Webhook System**: Secure webhook handling with HMAC signature validation
-- **Event-Driven Architecture**: AWS SQS integration for asynchronous payment events
-- **Comprehensive Testing**: 224 unit tests + 74 E2E tests with 100% pass rate
-- **Interactive Documentation**: Full Swagger/OpenAPI documentation with live testing
-- **Security**: API key authentication, input validation, and secure webhook processing
-- **Database**: PostgreSQL with TypeORM, migrations, and proper indexing
-
-## 🏗️ Architecture
+**Type**: HYBRID (Monolithic API + Event-Driven Microservices)
 
 ```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Merchants     │    │    Payments     │    │  Payment Methods│
-│   Module        │    │    Module       │    │     Module      │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                       │                       │
-         └───────────────────────┼───────────────────────┘
-                                 │
-                    ┌─────────────────┐
-                    │   Webhooks      │
-                    │   Module        │
-                    └─────────────────┘
-                                 │
-                    ┌─────────────────┐
-                    │   Events        │
-                    │   Module        │
-                    │   (SQS)         │
-                    └─────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                    CLIENT REQUEST                            │
+└──────────────────────┬──────────────────────────────────────┘
+                       ↓
+┌─────────────────────────────────────────────────────────────┐
+│           NESTJS API (Monolithic Core)                       │
+│  • REST API Endpoints                                        │
+│  • Business Logic                                            │
+│  • PostgreSQL Database                                       │
+└──────────────────────┬──────────────────────────────────────┘
+                       ↓ (Publishes Events)
+┌─────────────────────────────────────────────────────────────┐
+│              SNS TOPIC (payment-events)                      │
+│           Fan-out to Multiple Queues                         │
+└────────┬──────────┬──────────┬──────────┬───────────────────┘
+         ↓          ↓          ↓          ↓
+    ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐
+    │ Process│ │Webhook │ │Analyti-│ │ Notif. │
+    │  Queue │ │ Queue  │ │cs Queue│ │ Queue  │
+    └────┬───┘ └───┬────┘ └───┬────┘ └───┬────┘
+         ↓         ↓          ↓          ↓
+    ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐
+    │Payment │ │Webhook │ │ Future │ │ Future │
+    │Process │ │ Sender │ │        │ │        │
+    │ Lambda │ │ Lambda │ │        │ │        │
+    └────┬───┘ └────────┘ └────────┘ └────────┘
+         ↓
+         └─→ Starts Temporal Workflow
+                     ↓
+┌─────────────────────────────────────────────────────────────┐
+│              TEMPORAL WORKFLOW ENGINE                        │
+│                                                              │
+│  Server (Docker) ← → Worker (Node.js Process)              │
+│                           ↓                                  │
+│  PaymentProcessingWorkflow:                                │
+│    1. validatePayment                                       │
+│    2. updatePaymentStatus (processing)                      │
+│    3. processPaymentWithGateway                             │
+│    4. updatePaymentStatus (completed)                       │
+│    5. sendWebhookNotification                               │
+│                                                              │
+│  On Failure → compensatePayment (Saga Pattern)             │
+└─────────────────────────────────────────────────────────────┘
+                           ↓
+┌─────────────────────────────────────────────────────────────┐
+│         TEMPORAL UI (http://localhost:8088)                 │
+│  Complete observability, audit trail, workflow history      │
+└─────────────────────────────────────────────────────────────┘
 ```
+
+## 🎯 Key Features
+
+- ✅ **Event-Driven Architecture**: SNS/SQS for async communication
+- ✅ **Serverless Processing**: AWS Lambda with auto-scaling
+- ✅ **Workflow Orchestration**: Temporal for durable execution
+- ✅ **Fault Tolerance**: Automatic retries + Saga compensation pattern
+- ✅ **Complete Observability**: Temporal UI with full audit trail
+- ✅ **Hybrid Design**: Fast development + independent scaling
 
 ## 🛠️ Tech Stack
 
-- **Framework**: NestJS (Node.js)
-- **Database**: PostgreSQL with TypeORM
-- **Queue**: AWS SQS (Standard Queue)
-- **Authentication**: API Key-based
-- **Validation**: Class-validator with DTOs
-- **Testing**: Jest with Supertest
-- **Documentation**: Comprehensive Swagger/OpenAPI with interactive UI
-- **Logging**: Winston
-- **Security**: Helmet, CORS, HMAC validation
+### Core
+- **NestJS**: TypeScript framework for the API layer
+- **PostgreSQL**: Primary database (port 5433)
+- **TypeORM**: Database ORM
 
-## 📋 Prerequisites
+### Event-Driven
+- **AWS SNS**: Pub/sub messaging for event distribution
+- **AWS SQS**: Message queues for reliable delivery
+- **AWS Lambda**: Serverless functions (LocalStack)
 
-- Node.js 18+
-- PostgreSQL 13+
-- AWS Account (for SQS)
-- Docker (optional)
+### Workflow Orchestration
+- **Temporal**: Durable workflow engine
+- **Temporal UI**: Workflow observability (port 8088)
+
+### Development
+- **LocalStack**: Local AWS cloud stack (port 4566)
+- **Docker & Docker Compose**: Containerization
+- **Redis**: Caching layer (port 6379)
 
 ## 🚀 Quick Start
 
-### 1. Clone and Install
+### Prerequisites
+- Docker & Docker Compose
+- Node.js 18+
+- npm or yarn
 
+### 1. Install Dependencies
 ```bash
-git clone https://github.com/ChuloWay/merchant-payment-platform.git
-cd merchant-payment-platform
 npm install
 ```
 
-### 2. Environment Setup
-
-Copy the example environment file and configure:
-
+### 2. Start Infrastructure
 ```bash
-cp env.example .env
+docker-compose up -d
 ```
 
-Update `.env` with your configuration:
+**Services Started:**
+- PostgreSQL (port 5433)
+- LocalStack (port 4566)
+- Temporal Server (port 7233)
+- Temporal UI (port 8088)
+- Redis (port 6379)
 
-```env
-# Database
-DB_HOST=localhost
-DB_PORT=5432
-DB_USERNAME=postgres
-DB_PASSWORD=password
-DB_DATABASE=payment_system
-
-# AWS SQS
-AWS_REGION=us-east-1
-AWS_ACCESS_KEY_ID=your_access_key
-AWS_SECRET_ACCESS_KEY=your_secret_key
-SQS_QUEUE_URL=your_queue_url
-
-# Application
-PORT=3000
-API_PREFIX=api/v1
-WEBHOOK_SECRET=your_webhook_secret
+### 3. Set Up Environment
+```bash
+cp env.local.template .env
 ```
 
-### 3. Database Setup
-
+**Key environment variables** (already configured in `.env`):
 ```bash
-# Run migrations
+# Feature Flags
+ENABLE_SNS_PUBLISHING=true          # ✅ Use SNS for events
+ENABLE_SQS_CONSUMER=false           # ✅ Lambda handles SQS (not cron)
+ENABLE_TEMPORAL_WORKFLOWS=true      # ✅ Enable Temporal orchestration
+ENABLE_LAMBDA_PROCESSING=true       # ✅ Enable Lambda functions
+
+# Temporal
+TEMPORAL_ADDRESS=localhost:7233
+TEMPORAL_NAMESPACE=default
+TEMPORAL_TASK_QUEUE=payment-processing
+```
+
+### 4. Run Database Migrations
+```bash
 npm run migration:run
-
-# (Optional) Seed sample data
 npm run seed
 ```
 
-### 4. Start the Application
-
+### 5. Set Up AWS Resources (LocalStack)
 ```bash
-# Development
+bash scripts/localstack-setup.sh
+```
+
+**Creates:**
+- SNS Topic: `payment-events`
+- SQS Queues: `payment-processing-queue`, `payment-webhook-queue`, etc.
+- Subscriptions: All queues subscribed to SNS topic
+
+### 6. Deploy Lambda Functions
+```bash
+bash scripts/build-lambdas.sh
+bash scripts/deploy-lambdas.sh
+```
+
+**Lambda Functions:**
+- `payment-processor`: Processes payments, starts Temporal workflows
+- `webhook-sender`: Sends webhooks to merchants
+
+### 7. Start Application
+```bash
+# Terminal 1: NestJS API
 npm run start:dev
 
-# Production
-npm run build
-npm run start:prod
+# Terminal 2: Temporal Worker
+npm run start:worker
 ```
 
-The API will be available at `http://localhost:3000/api/v1`
+**Application URLs:**
+- API: http://localhost:3001/api/v1
+- API Docs: http://localhost:3001/api/v1/docs
+- Temporal UI: http://localhost:8088
+- Health Check: http://localhost:3001/api/v1/health
 
-> **💡 Pro Tip**: Visit `http://localhost:3000/api/v1/docs` to explore the interactive Swagger documentation and test endpoints directly in your browser!
+## 🧪 Testing
 
-## 📚 API Documentation
-
-### 🔍 **Interactive Swagger Documentation**
-
-The API includes comprehensive, interactive documentation powered by Swagger/OpenAPI:
-
-- **📖 Swagger UI**: `http://localhost:3000/api/v1/docs` - Interactive API explorer
-- **🔧 OpenAPI JSON**: `http://localhost:3000/api/v1/docs-json` - Machine-readable API spec
-- **❤️ Health Check**: `http://localhost:3000/api/v1/health` - Service health status
-
-### ✨ **Documentation Features**
-
-- **Complete API Coverage**: All 9 endpoints fully documented
-- **Request/Response Examples**: Real-world examples for Nigerian market
-- **Authentication Guide**: API key setup and usage
-- **Interactive Testing**: Try endpoints directly from the browser
-- **Schema Validation**: Detailed DTOs with validation rules
-- **Error Responses**: Comprehensive error code documentation
-
-## 🔑 API Usage
-
-### 1. Create a Merchant
-
+### Get Test Credentials
 ```bash
-curl -X POST http://localhost:3000/api/v1/merchants \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Lagos Tech Solutions Ltd",
-    "email": "contact@lagostech.com.ng",
-    "webhookUrl": "https://api.lagostech.com.ng/webhooks/payments"
-  }'
+# Get merchant and payment method from database
+docker exec payment_system_db psql -U postgres -d payment_system -c "SELECT id, \"apiKey\" FROM merchants LIMIT 1;"
+docker exec payment_system_db psql -U postgres -d payment_system -c "SELECT id FROM payment_methods LIMIT 1;"
 ```
 
-### 2. Add Payment Method
-
+### Create a Successful Payment
 ```bash
-curl -X POST http://localhost:3000/api/v1/payment-methods \
+curl -X POST http://localhost:3001/api/v1/payments \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: pk_your_api_key_here" \
+  -H "X-API-Key: pk_mg4v15ga_d68ae6bdbce7401595c79a57e27c79b0" \
   -d '{
-    "type": "card",
-    "lastFour": "1234",
-    "metadata": {
-      "cardNumber": "4111111111111111",
-      "expiryMonth": "12",
-      "expiryYear": "2025",
-      "cvv": "123",
-      "cardholderName": "John Doe"
-    }
-  }'
-```
-
-### 3. Initialize Payment
-
-```bash
-curl -X POST http://localhost:3000/api/v1/payments \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: pk_your_api_key_here" \
-  -d '{
-    "amount": 2500000,
+    "amount": 100000,
     "currency": "NGN",
-    "paymentMethodId": "payment_method_uuid",
+    "paymentMethodId": "227ff788-66dd-416a-a808-04aa583373ba",
     "metadata": {
-      "customerId": "CUST-123",
-      "orderId": "ORDER-456"
+      "orderId": "TEST-001",
+      "customerName": "John Doe",
+      "customerEmail": "john@test.com",
+      "description": "Test payment"
     }
   }'
 ```
 
-### 4. Process Webhook
-
-```bash
-curl -X POST http://localhost:3000/api/v1/webhooks/payment-gateway \
-  -H "Content-Type: application/json" \
-  -H "X-Signature: sha256=your_hmac_signature" \
-  -d '{
-    "reference": "PAY-123456789",
-    "status": "completed",
-    "gatewayReference": "paystack_ref_123456",
-    "metadata": {
-      "processor": "paystack"
-    }
-  }'
-```
-
-## 🔧 Webhook Mocking & Testing
-
-### Understanding Webhook Signatures
-
-In production, payment gateways (Paystack, Flutterwave) automatically generate and send webhooks with HMAC-SHA256 signatures. For testing and demos, you need to manually simulate this process.
-
-### How Webhook Signatures Work
-
-1. **Payment Gateway** processes payment and generates signature using shared secret
-2. **Gateway** sends webhook with signature in `X-Webhook-Signature` header
-3. **Your System** validates signature using the same secret
-4. **If Valid**: Process webhook and update payment status
-
-### Mocking Webhooks for Testing
-
-#### Step 1: Create a Payment
-```bash
-curl -X POST http://localhost:3000/api/v1/payments \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: pk_your_api_key_here" \
-  -d '{
-    "amount": 50000,
-    "currency": "NGN",
-    "paymentMethodId": "payment_method_uuid",
-    "metadata": {
-      "orderId": "ORDER-123"
-    }
-  }'
-
-# Response includes payment reference
+**Expected Response:**
+```json
 {
+  "statusCode": 201,
   "data": {
-    "reference": "PAY-MG4V5M0I-91729641",
-    "status": "pending"
+    "id": "uuid",
+    "reference": "PAY-xxx",
+    "amount": 100000,
+    "status": "pending",
+    ...
   }
 }
 ```
 
-#### Step 2: Generate Correct Signature
-```bash
-# Generate signature for your specific payload
-node -e "
-const crypto = require('crypto');
-const payload = JSON.stringify({
-  'reference': 'PAY-MG514QDK-7C233A6C',
-  'status': 'completed',
-  'gatewayReference': null
-});
-const signature = crypto.createHmac('sha256', 'test-webhook-secret').update(payload).digest('hex');
-console.log('Use this signature: sha256=' + signature);
-"
-```
+### What Happens After Payment Creation:
 
-#### Step 3: Send Webhook with Signature
+1. **NestJS saves payment** to PostgreSQL
+2. **Publishes event** to SNS Topic (`payment.initiated`)
+3. **SNS fans out** to multiple SQS queues
+4. **Lambda functions auto-trigger** from SQS messages
+5. **payment-processor Lambda** starts Temporal workflow
+6. **Temporal Worker executes** activities:
+   - `validatePayment` → validates business rules
+   - `updatePaymentStatus` → sets to "processing"
+   - `processPaymentWithGateway` → calls payment gateway
+   - `updatePaymentStatus` → sets to "completed"
+   - `sendWebhookNotification` → notifies merchant
+7. **Complete audit trail** available in Temporal UI
+
+### View Workflows in Temporal UI
+
+1. Open http://localhost:8088
+2. **Important**: Select **"default"** namespace (dropdown at top)
+3. Click **"Workflows"** tab
+4. Look for workflows starting with `payment-`
+5. Click on a workflow to see:
+   - Timeline of activities
+   - Input/output for each step
+   - Current status
+   - Complete event history
+
+### Create More Test Payments
 ```bash
-curl -X POST http://localhost:3000/api/v1/webhooks/payment-gateway \
+# High-value payment
+curl -X POST http://localhost:3001/api/v1/payments \
   -H "Content-Type: application/json" \
-  -H "X-Webhook-Signature: sha256=generated_signature_here" \
+  -H "X-API-Key: pk_mg4v15ga_d68ae6bdbce7401595c79a57e27c79b0" \
   -d '{
-    "reference": "PAY-MG4V5M0I-91729641",
-    "status": "completed",
-    "gatewayReference": "paystack_ref_123456"
+    "amount": 500000,
+    "currency": "NGN",
+    "paymentMethodId": "227ff788-66dd-416a-a808-04aa583373ba",
+    "metadata": {
+      "orderId": "HIGH-VALUE-001",
+      "customerName": "Jane Smith",
+      "customerEmail": "jane@test.com",
+      "priority": "high"
+    }
   }'
 ```
 
-### Using Swagger UI for Webhook Testing
+## 📋 Project Structure
 
-1. **Open Swagger UI**: `http://localhost:3000/api/v1/docs`
-2. **Navigate to**: Webhooks → `POST /webhooks/payment-gateway`
-3. **Headers**:
-   - `x-webhook-signature`: Use the generated signature from Step 2
-4. **Request Body**:
-```json
-{
-  "reference": "PAY-MG4V5M0I-91729641",
-  "status": "completed",
-  "gatewayReference": "paystack_ref_123456"
-}
+```
+payment-system-assessment/
+├── src/
+│   ├── modules/
+│   │   ├── payments/          # Payment processing logic
+│   │   ├── merchants/         # Merchant management
+│   │   ├── payment-methods/   # Payment methods
+│   │   ├── webhooks/          # Webhook handling
+│   │   └── events/            # SNS/SQS services
+│   ├── temporal/
+│   │   ├── workflows/         # Temporal workflow definitions
+│   │   ├── activities/        # Business logic activities
+│   │   ├── temporal-client.service.ts
+│   │   └── worker.ts          # Temporal worker
+│   ├── database/
+│   │   ├── migrations/        # Database migrations
+│   │   └── seeds/             # Test data
+│   └── config/                # Configuration files
+├── lambdas/
+│   ├── payment-processor/     # Payment processing Lambda
+│   ├── webhook-sender/        # Webhook delivery Lambda
+│   └── shared/                # Shared types & utilities
+├── scripts/
+│   ├── localstack-setup.sh    # AWS resources setup
+│   ├── deploy-lambdas.sh      # Lambda deployment
+│   └── build-lambdas.sh       # Lambda build script
+├── docker-compose.yml         # Infrastructure services
+└── .env                       # Environment configuration
 ```
 
-### Webhook Testing Scenarios
+## 🔍 Monitoring & Debugging
 
-#### Payment Completion
+### Check Application Logs
 ```bash
-curl -X POST http://localhost:3000/api/v1/webhooks/payment-gateway \
-  -H "Content-Type: application/json" \
-  -d '{
-    "reference": "PAY-MG4V5M0I-91729641",
-    "status": "completed",
-    "gatewayReference": "paystack_ref_123456"
-  }'
+# NestJS API logs
+tail -f app.log | grep -E "(SNS|Event published)"
+
+# Temporal Worker logs
+tail -f worker.log | grep -E "(PaymentActivity|workflow)"
 ```
 
-#### Payment Failure
+### Check Service Health
 ```bash
-curl -X POST http://localhost:3000/api/v1/webhooks/payment-gateway \
-  -H "Content-Type: application/json" \
-  -d '{
-    "reference": "PAY-MG4V5M0I-91729641",
-    "status": "failed",
-    "failureReason": "Insufficient funds"
-  }'
+# Application health
+curl http://localhost:3001/api/v1/health
+
+# Docker services
+docker-compose ps
+
+# Temporal server
+docker exec payment_temporal tctl workflow list --open
 ```
 
-#### Payment Cancellation
+### Check Queue Status
 ```bash
-curl -X POST http://localhost:3000/api/v1/webhooks/payment-gateway \
-  -H "Content-Type: application/json" \
-  -d '{
-    "reference": "PAY-MG4V5M0I-91729641",
-    "status": "cancelled"
-  }'
+docker run --rm \
+  --add-host=host.docker.internal:host-gateway \
+  -e AWS_ACCESS_KEY_ID=test \
+  -e AWS_SECRET_ACCESS_KEY=test \
+  -e AWS_DEFAULT_REGION=us-east-1 \
+  amazon/aws-cli \
+  --endpoint-url=http://host.docker.internal:4566 \
+  sqs get-queue-attributes \
+  --queue-url http://localhost:4566/000000000000/payment-processing-queue \
+  --attribute-names ApproximateNumberOfMessages
 ```
 
-#### Payment Refund
+### View Recent Payments
 ```bash
-curl -X POST http://localhost:3000/api/v1/webhooks/payment-gateway \
-  -H "Content-Type: application/json" \
-  -d '{
-    "reference": "PAY-MG4V5M0I-91729641",
-    "status": "refunded",
-    "gatewayReference": "refund_ref_123"
-  }'
+docker exec payment_system_db psql -U postgres -d payment_system \
+  -c "SELECT id, reference, amount, status, \"createdAt\" FROM payments ORDER BY \"createdAt\" DESC LIMIT 5;"
 ```
 
-### Signature Generation Details
+## 🏗️ Architecture Decisions
 
-#### Why Each Webhook Needs Its Own Signature
-- **HMAC-SHA256** is deterministic but sensitive to input
-- **Any difference** in payload (spaces, field order) = different signature
-- **Each webhook** has unique payload = unique signature
+### Why Hybrid Architecture?
 
-#### Signature Generation Process
-```javascript
-const crypto = require('crypto');
-const webhookSecret = 'test-webhook-secret'; // From .env
-const payload = JSON.stringify(webhookData); // Exact payload format
-const signature = crypto
-  .createHmac('sha256', webhookSecret)
-  .update(payload)
-  .digest('hex');
-```
+**Monolithic Core**:
+- ✅ Fast development for related features
+- ✅ Simple deployment
+- ✅ Shared database transactions
+- ✅ Easy to understand and maintain
 
-#### Common Signature Issues
-- **Wrong payload format**: Pretty JSON vs minified JSON
-- **Missing fields**: Payload must match exactly
-- **Wrong secret**: Must use same secret as system expects
+**Event-Driven Microservices**:
+- ✅ Independent scaling (Lambda auto-scales)
+- ✅ Fault isolation
+- ✅ Async processing
+- ✅ Easy to add new consumers
 
-### Production vs Testing
+### Why Temporal?
 
-#### In Production (Automatic)
-- ✅ Payment gateways generate signatures automatically
-- ✅ Gateways send webhooks automatically
-- ✅ Your system validates automatically
-- ✅ Everything is automated
+- ✅ **Durable Execution**: Workflows survive crashes
+- ✅ **Built-in Retries**: Automatic exponential backoff
+- ✅ **Saga Pattern**: Compensation logic for distributed transactions
+- ✅ **Observability**: Complete audit trail and UI
+- ✅ **Versioning**: Deploy new versions without breaking running workflows
+- ✅ **Time Travel**: Replay workflows for debugging
 
-#### For Testing (Manual)
-- 🔧 You generate signatures manually
-- 🔧 You send webhooks manually
-- 🔧 You simulate gateway behavior
-- 🔧 Perfect for demos and testing
+### Why SNS + SQS?
 
-### Environment Configuration
+- ✅ **Fan-out Pattern**: One event, multiple consumers
+- ✅ **Decoupling**: Publishers don't know about subscribers
+- ✅ **Reliability**: At-least-once delivery
+- ✅ **Buffering**: Handles traffic spikes
+- ✅ **Dead Letter Queues**: Handle poison messages
 
-```env
-# Webhook secret for signature validation
-WEBHOOK_SECRET=test-webhook-secret
+## 🚧 Development
 
-# For production, use your actual gateway webhook secret
-# WEBHOOK_SECRET=sk_test_your_actual_webhook_secret_here
-```
+### Adding a New Event Consumer
 
-### Troubleshooting Webhook Issues
+1. **Create new SQS queue** in `scripts/localstack-setup.sh`
+2. **Subscribe queue** to SNS topic
+3. **Create Lambda function** in `lambdas/`
+4. **Deploy Lambda** and create event source mapping
 
-#### "Invalid webhook signature" Error
-1. **Check payload format**: Must be exact JSON.stringify() format
-2. **Verify secret**: Must match WEBHOOK_SECRET in .env
-3. **Generate correct signature**: Use the exact payload that will be sent
+### Adding a New Workflow Activity
 
-#### Debug Signature Validation
-Add debug logs to see what's happening:
-```typescript
-console.log('Received signature:', signature);
-console.log('Expected signature:', expectedSignature);
-console.log('Payload:', JSON.stringify(payload));
-```
+1. **Define activity function** in `src/temporal/activities/`
+2. **Import in workflow** (`src/temporal/workflows/`)
+3. **Use in workflow** with retry policies
+4. **Restart Temporal worker**
 
-#### Skip Signature Validation (Testing Only)
-For testing, you can send webhooks without signatures - the system will process them but log a warning.
-
-## 🧪 Testing
-
-### Run All Tests
-
+### Running Tests
 ```bash
 # Unit tests
-npm run test
+npm test
 
 # E2E tests
 npm run test:e2e
 
-# Test coverage
+# Coverage
 npm run test:cov
 ```
 
-### Test Results
+## 🔐 Security Notes
 
-- **Unit Tests**: 224 tests covering all service methods and security scenarios
-- **E2E Tests**: 74 tests covering complete payment flows and integrations
-- **Coverage**: Comprehensive coverage of business logic and edge cases
+- API keys stored securely in database (hashed in production)
+- CORS configured for allowed origins
+- Rate limiting enabled (100 requests/minute)
+- Input validation on all endpoints
+- SQL injection protection via TypeORM
+- XSS protection via Helmet middleware
 
-## 🏗️ Project Structure
+## 📈 Production Considerations
 
-```
-src/
-├── common/                 # Shared utilities
-│   ├── filters/           # Global exception handling
-│   ├── guards/            # Authentication guards
-│   ├── health/            # Health check endpoints
-│   └── interceptors/      # Logging and correlation ID
-├── config/                # Configuration modules
-├── database/              # Database setup and migrations
-└── modules/               # Feature modules
-    ├── merchants/         # Merchant management
-    ├── payments/          # Payment processing
-    ├── payment-methods/   # Payment method management
-    ├── webhooks/          # Webhook handling
-    └── events/            # SQS event processing
-```
+### Database
+- Use managed PostgreSQL (AWS RDS, Azure Database)
+- Enable connection pooling
+- Set up read replicas for scaling
+- Regular backups and point-in-time recovery
 
-## 🔒 Security Features
+### AWS Services
+- Replace LocalStack with real AWS services
+- Use AWS Lambda in production
+- Configure CloudWatch for logging
+- Set up SNS/SQS with proper IAM roles
 
-- **API Key Authentication**: Secure merchant authentication
-- **HMAC Webhook Validation**: Tamper-proof webhook processing
-- **Input Validation**: Comprehensive DTO validation
-- **SQL Injection Protection**: TypeORM parameterized queries
-- **CORS Configuration**: Controlled cross-origin access
-- **Helmet Security**: HTTP security headers
+### Temporal
+- Use Temporal Cloud (managed service)
+- Or self-host with high availability
+- Set up proper namespace isolation
+- Configure workflow versioning strategy
 
-## 📊 Event-Driven Architecture
+### Monitoring
+- Integrate with Prometheus/Grafana
+- Set up alerts for failed workflows
+- Monitor queue depths
+- Track payment success rates
 
-### SQS Queue Design
+## 🤝 Contributing
 
-**Queue Type**: Standard Queue (not FIFO)
+This project demonstrates a production-ready architecture for:
+- Payment processing systems
+- Event-driven microservices
+- Workflow orchestration
+- AWS services integration
+- Temporal workflows
 
-**Rationale**: 
-- Payment status updates don't require strict ordering
-- Better scalability for event-driven systems
-- Consumer is designed to be idempotent, handling duplicates safely
+## 📄 License
 
-**Note**: If the requirement was to process money movements in exact order (e.g., debit/credit ledger updates), then a FIFO queue would be more appropriate.
+[Your License Here]
 
-### Event Flow
+## 🙏 Acknowledgments
 
-1. Payment initialized → `payment.initialized` event
-2. Payment status updated → `payment.status.changed` event
-3. Events published to SQS for asynchronous processing
-4. Consumers process events and update related systems
-
-### Dead Letter Queue
-
-**Current Status**: Disabled for this assessment
-
-**Production Note**: In a production setup, I would configure a Dead-Letter Queue to capture failed payment events for later analysis and retry mechanisms.
-
-## 🐳 Docker Support
-
-```bash
-# Build and run with Docker Compose
-docker-compose up --build
-
-# Run database only
-docker-compose up postgres
-```
-
-## 📈 Monitoring & Observability
-
-- **Structured Logging**: Winston with correlation IDs
-- **Health Checks**: Database and service health monitoring
-- **Request Tracing**: Correlation ID tracking across services
-- **Error Handling**: Global exception filter with detailed error responses
-
-## 🔧 Development
-
-### Available Scripts
-
-```bash
-npm run start:dev      # Development server with hot reload
-npm run build          # Build for production
-npm run lint           # Run ESLint
-npm run format         # Format code with Prettier
-npm run migration:run  # Run database migrations
-npm run migration:generate  # Generate new migration
-```
-
-### Code Quality
-
-- **ESLint**: Code linting and style enforcement
-- **Prettier**: Code formatting
-- **TypeScript**: Strict type checking
-- **Jest**: Comprehensive testing framework
-
-## 🚀 Production Considerations
-
-1. **Environment Variables**: Secure configuration management
-2. **Database**: Connection pooling and read replicas
-3. **Queue**: Dead letter queues and retry policies
-4. **Monitoring**: Application performance monitoring
-5. **Security**: Rate limiting and API key rotation
-6. **Scaling**: Horizontal scaling with load balancers
-
-## 📝 License
-
-This project is for assessment purposes only.
+Built with:
+- NestJS
+- Temporal
+- AWS Services (SNS/SQS/Lambda)
+- PostgreSQL
+- Docker
 
 ---
 
-**Built with ❤️ using NestJS, TypeScript, and AWS SQS**
+**Made with ❤️ for scalable, fault-tolerant payment processing**
