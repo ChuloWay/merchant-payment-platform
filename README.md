@@ -26,33 +26,57 @@ A production-ready, event-driven payment processing system built with **NestJS**
 │  • Payments, Merchants, Payment Methods APIs                │
 │  • PostgreSQL Database (Port 5433)                          │
 │  • Business Logic & Validation                              │
-└────────┬────────────────────────────┬───────────────────────┘
-         ↓                            ↓
-   (1) Publishes Event    (2) Starts Temporal Workflow
-         ↓                            ↓
-┌────────────────────────┐  ┌──────────────────────────────────┐
-│ SNS Topic              │  │  TEMPORAL (Port 7233)            │
-│ payment-events         │  │  ┌────────────────────────────┐  │
-└───┬────────────────────┘  │  │  Worker (Node.js)          │  │
-    ↓ (Fan-out)             │  │  Polls for tasks           │  │
-┌───────────────────────┐   │  └────────┬───────────────────┘  │
-│ SQS Queues            │   │           ↓                      │
-│ • payment-processing  │   │  PaymentProcessingWorkflow:     │
-│ • payment-webhook     │   │   1. validatePayment            │
-│ • analytics (future)  │   │   2. updatePaymentStatus        │
-└───┬───────────────────┘   │   3. processPaymentWithGateway  │
-    ↓ (Triggers)            │   4. updatePaymentStatus        │
-┌───────────────────────┐   │   5. sendWebhookNotification    │
-│ Lambda Functions      │   │                                 │
-│ • payment-processor   │   │  On Failure → compensatePayment │
-│ • webhook-sender      │   └──────────────────────────────────┘
-│ (LocalStack)          │                  ↓
-└───────────────────────┘   ┌──────────────────────────────────┐
-                            │  TEMPORAL UI (Port 8088)         │
-                            │  • View workflows                │
-                            │  • Complete audit trail          │
-                            │  • Namespace: default            │
-                            └──────────────────────────────────┘
+└──────────────────────┬──────────────────────────────────────┘
+                       ↓
+              (Publishes Event)
+                       ↓
+┌─────────────────────────────────────────────────────────────┐
+│              SNS TOPIC: payment-events                       │
+│              (Fan-out to Multiple Queues)                    │
+└────────┬────────────────────────┬─────────────────────┬─────┘
+         ↓                        ↓                     ↓
+┌────────────────┐    ┌────────────────┐    ┌────────────────┐
+│ payment-       │    │ payment-       │    │ analytics      │
+│ processing-    │    │ webhook-       │    │ queue          │
+│ queue          │    │ queue          │    │ (future)       │
+└───────┬────────┘    └───────┬────────┘    └────────────────┘
+        ↓                     ↓
+        │                     │
+┌───────▼────────┐    ┌───────▼────────┐
+│ LAMBDA:        │    │ LAMBDA:        │
+│ payment-       │    │ webhook-       │
+│ processor      │    │ sender         │
+└───────┬────────┘    └────────────────┘
+        │
+        │ (Starts Workflow)
+        ↓
+┌─────────────────────────────────────────────────────────────┐
+│              TEMPORAL WORKFLOW ENGINE                        │
+│              (Port 7233)                                     │
+│                                                              │
+│  ┌────────────────────────────────────────────────────┐    │
+│  │  Temporal Worker (Node.js Process)                 │    │
+│  │  • Polls task queue: payment-processing            │    │
+│  │  • Executes workflow activities                    │    │
+│  └────────────────────────────────────────────────────┘    │
+│                                                              │
+│  PaymentProcessingWorkflow:                                │
+│    1. validatePayment           ✓                          │
+│    2. updatePaymentStatus       → "processing"             │
+│    3. processPaymentWithGateway ✓                          │
+│    4. updatePaymentStatus       → "completed"              │
+│    5. sendWebhookNotification   ✓                          │
+│                                                              │
+│  On Failure: compensatePayment (Saga Pattern)              │
+└──────────────────────┬───────────────────────────────────────┘
+                       ↓
+┌─────────────────────────────────────────────────────────────┐
+│         TEMPORAL UI (Port 8088)                              │
+│  • View all workflow executions                             │
+│  • Complete audit trail with timeline                       │
+│  • Activity inputs/outputs                                  │
+│  • Namespace: default                                       │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ## 🎯 Key Features
@@ -151,8 +175,8 @@ bash scripts/deploy-lambdas.sh
 ```
 
 **Lambda Functions:**
-- `payment-processor`: Processes payments, starts Temporal workflows
-- `webhook-sender`: Sends webhooks to merchants
+- `payment-processor`: Receives payment events from SQS, starts Temporal workflows
+- `webhook-sender`: Receives webhook events from SQS, delivers webhooks to merchants
 
 ### 7. Start Application
 ```bash
@@ -246,28 +270,44 @@ curl -X POST http://localhost:3001/api/v1/payments \
 
 ### What Happens After Payment Creation:
 
-**Flow 1: Payment Processing (Temporal)**
-1. NestJS saves payment to PostgreSQL
-2. **NestJS starts Temporal workflow directly** ⚡
-3. Temporal Worker executes activities:
-   - ✅ `validatePayment` → validates business rules
-   - ✅ `updatePaymentStatus` → sets to "processing"
-   - ✅ `processPaymentWithGateway` → calls payment gateway
-   - ✅ `updatePaymentStatus` → sets to "completed"
-   - ✅ `sendWebhookNotification` → notifies merchant
-4. Complete audit trail in Temporal UI
+**Complete Event-Driven Flow:**
 
-**Flow 2: Event Distribution (SNS/SQS/Lambda)**
-1. NestJS publishes `payment.initiated` event to SNS
-2. SNS fans out to multiple SQS queues:
-   - `payment-processing-queue` → triggers `payment-processor` Lambda
-   - `payment-webhook-queue` → triggers `webhook-sender` Lambda
-3. Lambda functions handle:
-   - Analytics processing
-   - Webhook delivery to merchants
-   - Future: notifications, reporting, etc.
+1. **NestJS API** (Port 3001):
+   - Saves payment to PostgreSQL
+   - Publishes `payment.initiated` event to SNS
 
-**Both flows run in parallel** - Temporal handles the main payment workflow, while Lambda handles auxiliary tasks.
+2. **SNS Topic** (payment-events):
+   - Receives event from NestJS
+   - **Fans out** to multiple SQS queues
+
+3. **SQS Queues**:
+   - `payment-processing-queue` → receives event
+   - `payment-webhook-queue` → receives event
+   - `analytics-queue` → (future use)
+
+4. **Lambda Functions** (Auto-triggered by SQS):
+   - `payment-processor` Lambda:
+     - Receives message from `payment-processing-queue`
+     - **Starts Temporal workflow** with payment data
+   - `webhook-sender` Lambda:
+     - Handles webhook delivery to merchants
+     - Retry logic and failure handling
+
+5. **Temporal Workflow Engine**:
+   - Receives workflow start request from Lambda
+   - Worker polls for tasks on `payment-processing` queue
+   - Executes activities in sequence:
+     - ✅ `validatePayment` → validates business rules
+     - ✅ `updatePaymentStatus` → sets to "processing"
+     - ✅ `processPaymentWithGateway` → calls payment gateway
+     - ✅ `updatePaymentStatus` → sets to "completed"
+     - ✅ `sendWebhookNotification` → notifies merchant
+   - On failure: runs `compensatePayment` (Saga pattern)
+
+6. **Temporal UI** (Port 8088):
+   - Complete audit trail available
+   - View workflow timeline, inputs, outputs
+   - Monitor all workflow executions
 
 ### View Workflows in Temporal UI
 
