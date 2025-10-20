@@ -2,6 +2,15 @@
 
 A production-ready, event-driven payment processing system built with **NestJS**, **AWS services** (SNS/SQS/Lambda), and **Temporal** workflow orchestration.
 
+## 🎯 Quick Access
+
+| Resource | URL | Purpose |
+|----------|-----|---------|
+| **Swagger API** | http://localhost:3001/api/v1/docs | **Test all endpoints** (easiest way!) |
+| **Temporal UI** | http://localhost:8088 | View workflow execution (namespace: `default`) |
+| **Health Check** | http://localhost:3001/api/v1/health | Verify system status |
+| **API Base** | http://localhost:3001/api/v1 | REST API endpoints |
+
 ## 📊 Architecture Overview
 
 **Type**: HYBRID (Monolithic API + Event-Driven Microservices)
@@ -9,37 +18,41 @@ A production-ready, event-driven payment processing system built with **NestJS**
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    CLIENT REQUEST                            │
+│                 (Swagger: /api/v1/docs)                      │
 └──────────────────────┬──────────────────────────────────────┘
                        ↓
 ┌─────────────────────────────────────────────────────────────┐
-│           NESTJS API (Monolithic Core)                       │
-│  • REST API Endpoints (Swagger: /api/v1/docs)               │
-│  • Business Logic                                            │
-│  • PostgreSQL Database                                       │
-│  • Temporal Client (Starts Workflows Directly)              │
-└─────────┬──────────────────────────┬────────────────────────┘
-          ↓                          ↓
-    (Publishes Events)    (Starts Temporal Workflow)
-          ↓                          ↓
-┌──────────────────────┐   ┌─────────────────────────────────┐
-│  SNS (payment-events)│   │  TEMPORAL WORKFLOW ENGINE       │
-│  Fan-out to Queues   │   │                                 │
-└─────┬────────────────┘   │  Server ← → Worker (Node.js)   │
-      ↓                    │                                 │
-┌─────────────┐            │  PaymentProcessingWorkflow:    │
-│ SQS Queues  │            │   1. validatePayment           │
-│  • Process  │            │   2. updatePaymentStatus       │
-│  • Webhook  │            │   3. processPaymentWithGateway │
-│  • Analytics│            │   4. updatePaymentStatus       │
-└──────┬──────┘            │   5. sendWebhookNotification   │
-       ↓                   │                                 │
-┌──────────────┐           │  Saga: compensatePayment       │
-│   Lambdas    │           └─────────────────────────────────┘
-│ (Future Use) │                        ↓
-└──────────────┘           ┌─────────────────────────────────┐
-                           │  TEMPORAL UI (localhost:8088)   │
-                           │  Workflow observability         │
-                           └─────────────────────────────────┘
+│              NESTJS API (Port 3001)                          │
+│  • Payments, Merchants, Payment Methods APIs                │
+│  • PostgreSQL Database (Port 5433)                          │
+│  • Business Logic & Validation                              │
+└────────┬────────────────────────────┬───────────────────────┘
+         ↓                            ↓
+   (1) Publishes Event    (2) Starts Temporal Workflow
+         ↓                            ↓
+┌────────────────────────┐  ┌──────────────────────────────────┐
+│ SNS Topic              │  │  TEMPORAL (Port 7233)            │
+│ payment-events         │  │  ┌────────────────────────────┐  │
+└───┬────────────────────┘  │  │  Worker (Node.js)          │  │
+    ↓ (Fan-out)             │  │  Polls for tasks           │  │
+┌───────────────────────┐   │  └────────┬───────────────────┘  │
+│ SQS Queues            │   │           ↓                      │
+│ • payment-processing  │   │  PaymentProcessingWorkflow:     │
+│ • payment-webhook     │   │   1. validatePayment            │
+│ • analytics (future)  │   │   2. updatePaymentStatus        │
+└───┬───────────────────┘   │   3. processPaymentWithGateway  │
+    ↓ (Triggers)            │   4. updatePaymentStatus        │
+┌───────────────────────┐   │   5. sendWebhookNotification    │
+│ Lambda Functions      │   │                                 │
+│ • payment-processor   │   │  On Failure → compensatePayment │
+│ • webhook-sender      │   └──────────────────────────────────┘
+│ (LocalStack)          │                  ↓
+└───────────────────────┘   ┌──────────────────────────────────┐
+                            │  TEMPORAL UI (Port 8088)         │
+                            │  • View workflows                │
+                            │  • Complete audit trail          │
+                            │  • Namespace: default            │
+                            └──────────────────────────────────┘
 ```
 
 ## 🎯 Key Features
@@ -233,19 +246,28 @@ curl -X POST http://localhost:3001/api/v1/payments \
 
 ### What Happens After Payment Creation:
 
-1. **NestJS API**:
-   - Saves payment to PostgreSQL
-   - Publishes event to SNS (`payment.initiated`)
-   - **Starts Temporal workflow directly** ⚡
-
-2. **Temporal Worker** executes activities in order:
+**Flow 1: Payment Processing (Temporal)**
+1. NestJS saves payment to PostgreSQL
+2. **NestJS starts Temporal workflow directly** ⚡
+3. Temporal Worker executes activities:
    - ✅ `validatePayment` → validates business rules
    - ✅ `updatePaymentStatus` → sets to "processing"
    - ✅ `processPaymentWithGateway` → calls payment gateway
    - ✅ `updatePaymentStatus` → sets to "completed"
    - ✅ `sendWebhookNotification` → notifies merchant
+4. Complete audit trail in Temporal UI
 
-3. **Complete audit trail** available in Temporal UI
+**Flow 2: Event Distribution (SNS/SQS/Lambda)**
+1. NestJS publishes `payment.initiated` event to SNS
+2. SNS fans out to multiple SQS queues:
+   - `payment-processing-queue` → triggers `payment-processor` Lambda
+   - `payment-webhook-queue` → triggers `webhook-sender` Lambda
+3. Lambda functions handle:
+   - Analytics processing
+   - Webhook delivery to merchants
+   - Future: notifications, reporting, etc.
+
+**Both flows run in parallel** - Temporal handles the main payment workflow, while Lambda handles auxiliary tasks.
 
 ### View Workflows in Temporal UI
 
