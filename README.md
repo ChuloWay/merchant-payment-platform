@@ -13,48 +13,33 @@ A production-ready, event-driven payment processing system built with **NestJS**
                        ↓
 ┌─────────────────────────────────────────────────────────────┐
 │           NESTJS API (Monolithic Core)                       │
-│  • REST API Endpoints                                        │
+│  • REST API Endpoints (Swagger: /api/v1/docs)               │
 │  • Business Logic                                            │
 │  • PostgreSQL Database                                       │
-└──────────────────────┬──────────────────────────────────────┘
-                       ↓ (Publishes Events)
-┌─────────────────────────────────────────────────────────────┐
-│              SNS TOPIC (payment-events)                      │
-│           Fan-out to Multiple Queues                         │
-└────────┬──────────┬──────────┬──────────┬───────────────────┘
-         ↓          ↓          ↓          ↓
-    ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐
-    │ Process│ │Webhook │ │Analyti-│ │ Notif. │
-    │  Queue │ │ Queue  │ │cs Queue│ │ Queue  │
-    └────┬───┘ └───┬────┘ └───┬────┘ └───┬────┘
-         ↓         ↓          ↓          ↓
-    ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐
-    │Payment │ │Webhook │ │ Future │ │ Future │
-    │Process │ │ Sender │ │        │ │        │
-    │ Lambda │ │ Lambda │ │        │ │        │
-    └────┬───┘ └────────┘ └────────┘ └────────┘
-         ↓
-         └─→ Starts Temporal Workflow
-                     ↓
-┌─────────────────────────────────────────────────────────────┐
-│              TEMPORAL WORKFLOW ENGINE                        │
-│                                                              │
-│  Server (Docker) ← → Worker (Node.js Process)              │
-│                           ↓                                  │
-│  PaymentProcessingWorkflow:                                │
-│    1. validatePayment                                       │
-│    2. updatePaymentStatus (processing)                      │
-│    3. processPaymentWithGateway                             │
-│    4. updatePaymentStatus (completed)                       │
-│    5. sendWebhookNotification                               │
-│                                                              │
-│  On Failure → compensatePayment (Saga Pattern)             │
-└─────────────────────────────────────────────────────────────┘
-                           ↓
-┌─────────────────────────────────────────────────────────────┐
-│         TEMPORAL UI (http://localhost:8088)                 │
-│  Complete observability, audit trail, workflow history      │
-└─────────────────────────────────────────────────────────────┘
+│  • Temporal Client (Starts Workflows Directly)              │
+└─────────┬──────────────────────────┬────────────────────────┘
+          ↓                          ↓
+    (Publishes Events)    (Starts Temporal Workflow)
+          ↓                          ↓
+┌──────────────────────┐   ┌─────────────────────────────────┐
+│  SNS (payment-events)│   │  TEMPORAL WORKFLOW ENGINE       │
+│  Fan-out to Queues   │   │                                 │
+└─────┬────────────────┘   │  Server ← → Worker (Node.js)   │
+      ↓                    │                                 │
+┌─────────────┐            │  PaymentProcessingWorkflow:    │
+│ SQS Queues  │            │   1. validatePayment           │
+│  • Process  │            │   2. updatePaymentStatus       │
+│  • Webhook  │            │   3. processPaymentWithGateway │
+│  • Analytics│            │   4. updatePaymentStatus       │
+└──────┬──────┘            │   5. sendWebhookNotification   │
+       ↓                   │                                 │
+┌──────────────┐           │  Saga: compensatePayment       │
+│   Lambdas    │           └─────────────────────────────────┘
+│ (Future Use) │                        ↓
+└──────────────┘           ┌─────────────────────────────────┐
+                           │  TEMPORAL UI (localhost:8088)   │
+                           │  Workflow observability         │
+                           └─────────────────────────────────┘
 ```
 
 ## 🎯 Key Features
@@ -173,90 +158,105 @@ npm run start:worker
 
 ## 🧪 Testing
 
-### Get Test Credentials
+### Option 1: Quick Test Script (Easiest!)
 ```bash
-# Get merchant and payment method from database
-docker exec payment_system_db psql -U postgres -d payment_system -c "SELECT id, \"apiKey\" FROM merchants LIMIT 1;"
-docker exec payment_system_db psql -U postgres -d payment_system -c "SELECT id FROM payment_methods LIMIT 1;"
+./quick-test.sh
 ```
+This script automatically:
+- Gets credentials from database
+- Creates a test payment
+- Shows workflow execution in logs
+- Provides links to Temporal UI and Swagger
 
-### Create a Successful Payment
+### Option 2: Using Swagger UI (Recommended)
+
+1. **Open Swagger UI**: http://localhost:3001/api/v1/docs
+
+2. **Authenticate**:
+   - Click **"Authorize"** button (lock icon at top-right)
+   - Enter API Key: `pk_mg4v15ga_d68ae6bdbce7401595c79a57e27c79b0`
+   - Click **"Authorize"** then **"Close"**
+
+3. **Test Health Check**:
+   - Expand `GET /health`
+   - Click **"Try it out"** → **"Execute"**
+   - Should return: `{"status": "ok"}`
+
+4. **Create Payment** (Main Flow):
+   - Expand `POST /payments`
+   - Click **"Try it out"**
+   - Modify the JSON:
+   ```json
+   {
+     "amount": 100000,
+     "currency": "NGN",
+     "paymentMethodId": "227ff788-66dd-416a-a808-04aa583373ba",
+     "metadata": {
+       "orderId": "ORD-001",
+       "customerId": "CUST-001",
+       "customerName": "John Doe",
+       "customerEmail": "john@test.com",
+       "description": "Test payment"
+     }
+   }
+   ```
+   - Click **"Execute"**
+   - Copy the `reference` from response (e.g., `PAY-MGZ0VNLB-A3AD3D73`)
+
+5. **Get Payment Details**:
+   - Expand `GET /payments/{reference}`
+   - Click **"Try it out"**
+   - Paste the reference
+   - Click **"Execute"**
+
+### Option 3: Using cURL
 ```bash
+# Get credentials
+API_KEY=$(docker exec payment_system_db psql -U postgres -d payment_system -t -c 'SELECT "apiKey" FROM merchants LIMIT 1;' | xargs)
+PAYMENT_METHOD=$(docker exec payment_system_db psql -U postgres -d payment_system -t -c 'SELECT id FROM payment_methods LIMIT 1;' | xargs)
+
+# Create payment
 curl -X POST http://localhost:3001/api/v1/payments \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: pk_mg4v15ga_d68ae6bdbce7401595c79a57e27c79b0" \
+  -H "X-API-Key: $API_KEY" \
   -d '{
     "amount": 100000,
     "currency": "NGN",
-    "paymentMethodId": "227ff788-66dd-416a-a808-04aa583373ba",
+    "paymentMethodId": "'"$PAYMENT_METHOD"'",
     "metadata": {
       "orderId": "TEST-001",
       "customerName": "John Doe",
-      "customerEmail": "john@test.com",
-      "description": "Test payment"
+      "customerEmail": "john@test.com"
     }
   }'
-```
-
-**Expected Response:**
-```json
-{
-  "statusCode": 201,
-  "data": {
-    "id": "uuid",
-    "reference": "PAY-xxx",
-    "amount": 100000,
-    "status": "pending",
-    ...
-  }
-}
 ```
 
 ### What Happens After Payment Creation:
 
-1. **NestJS saves payment** to PostgreSQL
-2. **Publishes event** to SNS Topic (`payment.initiated`)
-3. **SNS fans out** to multiple SQS queues
-4. **Lambda functions auto-trigger** from SQS messages
-5. **payment-processor Lambda** starts Temporal workflow
-6. **Temporal Worker executes** activities:
-   - `validatePayment` → validates business rules
-   - `updatePaymentStatus` → sets to "processing"
-   - `processPaymentWithGateway` → calls payment gateway
-   - `updatePaymentStatus` → sets to "completed"
-   - `sendWebhookNotification` → notifies merchant
-7. **Complete audit trail** available in Temporal UI
+1. **NestJS API**:
+   - Saves payment to PostgreSQL
+   - Publishes event to SNS (`payment.initiated`)
+   - **Starts Temporal workflow directly** ⚡
+
+2. **Temporal Worker** executes activities in order:
+   - ✅ `validatePayment` → validates business rules
+   - ✅ `updatePaymentStatus` → sets to "processing"
+   - ✅ `processPaymentWithGateway` → calls payment gateway
+   - ✅ `updatePaymentStatus` → sets to "completed"
+   - ✅ `sendWebhookNotification` → notifies merchant
+
+3. **Complete audit trail** available in Temporal UI
 
 ### View Workflows in Temporal UI
 
-1. Open http://localhost:8088
-2. **Important**: Select **"default"** namespace (dropdown at top)
-3. Click **"Workflows"** tab
-4. Look for workflows starting with `payment-`
-5. Click on a workflow to see:
-   - Timeline of activities
+1. Open: http://localhost:8088
+2. **Select namespace**: `default` (dropdown at top-left)
+3. You'll see workflows named: `payment-{id}-{uuid}`
+4. Click on a workflow to see:
+   - Complete timeline of activities
    - Input/output for each step
-   - Current status
-   - Complete event history
-
-### Create More Test Payments
-```bash
-# High-value payment
-curl -X POST http://localhost:3001/api/v1/payments \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: pk_mg4v15ga_d68ae6bdbce7401595c79a57e27c79b0" \
-  -d '{
-    "amount": 500000,
-    "currency": "NGN",
-    "paymentMethodId": "227ff788-66dd-416a-a808-04aa583373ba",
-    "metadata": {
-      "orderId": "HIGH-VALUE-001",
-      "customerName": "Jane Smith",
-      "customerEmail": "jane@test.com",
-      "priority": "high"
-    }
-  }'
-```
+   - Current status and results
+   - Full event history with timestamps
 
 ## 📋 Project Structure
 
