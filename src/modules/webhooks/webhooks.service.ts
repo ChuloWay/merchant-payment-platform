@@ -59,25 +59,41 @@ export class WebhooksService {
     payload: string,
     signature: string,
   ): boolean {
+    console.log('🔍 DEBUG: validateWebhookSignature called');
+    console.log('📥 Received signature:', signature);
+    console.log('📥 Received payload:', payload);
+    
     if (!signature || !payload) {
+      console.log('❌ Missing signature or payload');
       return false;
     }
-
+  
     try {
       // In a real implementation, you would use the webhook secret from environment
       const webhookSecret = process.env.WEBHOOK_SECRET || 'test-webhook-secret';
+      console.log('🔑 Using webhook secret:', webhookSecret);
       
       const expectedSignature = require('crypto')
         .createHmac('sha256', webhookSecret)
         .update(payload)
         .digest('hex');
-
+      
+      console.log('🎯 Expected signature:', expectedSignature);
+      console.log('📊 Signature comparison:');
+      console.log('  - Received:', signature);
+      console.log('  - Expected:', expectedSignature);
+      console.log('  - Match:', signature === expectedSignature);
+  
       // Use constant-time comparison to prevent timing attacks
-      return require('crypto').timingSafeEqual(
+      const isValid = require('crypto').timingSafeEqual(
         Buffer.from(signature, 'hex'),
         Buffer.from(expectedSignature, 'hex')
       );
+      
+      console.log('✅ Final validation result:', isValid);
+      return isValid;
     } catch (error) {
+      console.log('❌ Error in signature validation:', error.message);
       return false;
     }
   }

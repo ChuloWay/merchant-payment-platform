@@ -1,13 +1,12 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { ScheduleModule } from '@nestjs/schedule';
 import { SqsService } from './sqs.service';
-import { EventsConsumer } from './events.consumer';
+import { SnsService } from './sns.service';
 import { sqsConfig } from '../../config/sqs.config';
 
 @Module({
-  imports: [ConfigModule.forFeature(sqsConfig), ScheduleModule.forRoot()],
-  providers: [SqsService, EventsConsumer],
-  exports: [SqsService],
+  imports: [ConfigModule.forFeature(sqsConfig)],
+  providers: [SqsService, SnsService],
+  exports: [SqsService, SnsService],
 })
 export class EventsModule {}

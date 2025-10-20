@@ -1,0 +1,17 @@
+{
+  "name": "webhook-sender-lambda",
+  "version": "1.0.0",
+  "description": "Lambda function to send webhooks to merchants",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc && cp -r dist/webhook-sender/* ./ && rm -rf dist",
+    "package": "npm run build && zip -r function.zip index.js"
+  },
+  "dependencies": {
+    "@types/aws-lambda": "^8.10.145"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}
+

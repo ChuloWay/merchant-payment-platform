@@ -11,6 +11,7 @@ import { PaymentsModule } from './modules/payments/payments.module';
 import { PaymentMethodsModule } from './modules/payment-methods/payment-methods.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { EventsModule } from './modules/events/events.module';
+import { TemporalModule } from './temporal/temporal.module';
 import { HealthController } from './common/health/health.controller';
 
 @Module({
@@ -55,6 +56,7 @@ import { HealthController } from './common/health/health.controller';
     PaymentMethodsModule,
     WebhooksModule,
     EventsModule,
+    TemporalModule,
   ],
   controllers: [HealthController],
 })
